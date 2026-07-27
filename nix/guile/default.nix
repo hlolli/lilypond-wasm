@@ -86,6 +86,14 @@ in
     doCheck = false;
     doInstallCheck = false;
 
+    passthru =
+      (old.passthru or {})
+      // {
+        requiredFinalWasmOptFlags =
+          lib.unique
+          (["--fpcast-emu"] ++ boehmgc.requiredFinalWasmOptFlags);
+      };
+
     meta =
       old.meta
       // {

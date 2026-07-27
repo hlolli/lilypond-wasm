@@ -1,6 +1,7 @@
 {
   binaryen,
   guile,
+  lib,
   pkg-config,
   runCommand,
   stdenvWasi,
@@ -39,7 +40,7 @@
         -o guile-smoke-raw.wasm
 
       wasm-opt \
-        --fpcast-emu \
+        ${lib.escapeShellArgs guile.requiredFinalWasmOptFlags} \
         guile-smoke-raw.wasm \
         -o guile-smoke.wasm
 

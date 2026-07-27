@@ -9,7 +9,7 @@ run_scheme (void *data)
 
   SCM value = scm_c_eval_string (
     "(begin "
-    "  (use-modules (ice-9 match) (srfi srfi-1)) "
+    "  (use-modules (ice-9 match) (oop goops) (srfi srfi-1)) "
     "  (match (iota 4) ((a b c d) (+ a b c d))))");
 
   printf ("guile result: %ld\n", (long) scm_to_long (value));

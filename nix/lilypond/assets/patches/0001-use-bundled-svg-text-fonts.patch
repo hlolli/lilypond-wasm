@@ -1,0 +1,22 @@
+diff --git a/ly/paper-defaults-init.ly b/ly/paper-defaults-init.ly
+--- a/ly/paper-defaults-init.ly
++++ b/ly/paper-defaults-init.ly
+@@ -169,15 +169,15 @@
+   property-defaults.fonts.music = "emmentaler"
+   property-defaults.fonts.serif =
+     #(if (eq? 'svg (ly:get-option 'backend))
+-         "serif"
++         "C059"
+          "LilyPond Serif")
+   property-defaults.fonts.sans =
+     #(if (eq? 'svg (ly:get-option 'backend))
+-         "sans"
++         "Nimbus Sans"
+          "LilyPond Sans Serif")
+   property-defaults.fonts.typewriter =
+     #(if (eq? 'svg (ly:get-option 'backend))
+-         "monospace"
++         "Nimbus Mono PS"
+          "LilyPond Monospace")
+ 
+   %%

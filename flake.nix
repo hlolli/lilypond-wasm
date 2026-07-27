@@ -50,6 +50,9 @@
           inherit zlib;
         };
         libunistring = pkgsWasm.callPackage ./nix/libunistring.nix {};
+        lilypond-assets = pkgs.callPackage ./nix/lilypond/assets {
+          src = lilypondSource;
+        };
         lilypond = pkgsWasm.callPackage ./nix/lilypond {
           boehmgc = boehm-gc;
           inherit
@@ -139,6 +142,11 @@
         };
         lilypond-link-smoke = scope.pkgs.callPackage ./nix/lilypond/tests {
           lilypond = scope.packages.lilypond;
+        };
+        lilypond-svg-smoke = scope.pkgs.callPackage ./nix/lilypond/tests/render.nix {
+          guile = scope.packages.guile;
+          lilypond = scope.packages.lilypond;
+          lilypondAssets = scope.packages.lilypond-assets;
         };
         pango-smoke = scope.pkgs.callPackage ./nix/pango/tests {
           binaryen = scope.pkgs.binaryen;

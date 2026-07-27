@@ -737,3 +737,19 @@ index 118023a..1a66dab 100644
    return SCM_BOOL_T;
  }
  #undef FUNC_NAME
+diff --git a/module/system/foreign-library.scm b/module/system/foreign-library.scm
+index 06352ca34..88a648f51 100644
+--- a/module/system/foreign-library.scm
++++ b/module/system/foreign-library.scm
+@@ -45,8 +45,9 @@
+   (handle foreign-library-handle set-foreign-library-handle!))
+ 
+ (eval-when (expand load eval)
+-  (load-extension (string-append "libguile-" (effective-version))
+-                  "scm_init_system_foreign_library"))
++  (unless (string-contains %host-type "wasi")
++    (load-extension (string-append "libguile-" (effective-version))
++                    "scm_init_system_foreign_library")))
+ 
+ (define system-library-extensions
+   (cond
