@@ -139,7 +139,17 @@ in
       mkdir -p "$out/bin"
       cp lilypond.wasm "$out/bin/lilypond.wasm"
 
+      license_dir="$out/share/licenses/lilypond-wasm"
+      mkdir -p "$license_dir"
+      cp ${../../COPYING} "$license_dir/COPYING"
+      cp ${../../LICENSE} "$license_dir/LICENSE"
+      cp ${../../THIRD_PARTY_NOTICES.md} "$license_dir/THIRD_PARTY_NOTICES.md"
+      cp -R ${../../third-party/licenses} "$license_dir/third-party"
+
       test -s "$out/bin/lilypond.wasm"
+      test -s "$license_dir/COPYING"
+      test -s "$license_dir/third-party/lilypond/LICENSE"
+      test -s "$license_dir/third-party/wasi-libc/LICENSE"
 
       runHook postInstall
     '';
