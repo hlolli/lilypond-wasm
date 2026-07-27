@@ -1,5 +1,6 @@
 {
   boehmgc,
+  gmp,
   guile_3_0,
   lib,
   libffi,
@@ -8,7 +9,7 @@
 
 let
   base = guile_3_0.override {
-    inherit boehmgc libffi;
+    inherit boehmgc gmp libffi;
   };
 
   isUnusedTargetInput =
@@ -57,6 +58,7 @@ base.overrideAttrs (old: {
     test -f "$out/lib/libguile-3.0.a"
     sed -i "$out/lib/pkgconfig/guile"-*.pc \
       -e "s|-lffi|-L${libffi}/lib -lffi|g" \
+      -e "s|-lgmp|-L${gmp}/lib -lgmp|g" \
       -e "s|-lunistring|-L${libunistring}/lib -lunistring|g" \
       -e "s|^Cflags:\(.*\)$|Cflags: -I${libunistring.dev}/include \1|g" \
       -e "s|includedir=$out|includedir=$dev|g"

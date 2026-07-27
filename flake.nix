@@ -35,9 +35,11 @@
         in
         rec {
           boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix { };
+          gmp = pkgsWasm.callPackage ./nix/gmp.nix { };
           libffi = pkgsWasm.callPackage ./nix/libffi.nix { };
           guile = pkgsWasm.callPackage ./nix/guile.nix {
             boehmgc = boehm-gc;
+            inherit gmp;
             libffi = libffi;
           };
           default = guile;
