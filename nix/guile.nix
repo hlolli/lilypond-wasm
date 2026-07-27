@@ -9,7 +9,7 @@
 
 let
   base = guile_3_0.override {
-    inherit boehmgc gmp libffi;
+    inherit boehmgc gmp libffi libunistring;
   };
 
   isUnusedTargetInput =
@@ -26,6 +26,14 @@ let
 in
 base.overrideAttrs (old: {
   pname = "guile-wasi";
+
+  CFLAGS = "-O2 -mllvm -wasm-enable-sjlj";
+  LIBS = "-lwasi-emulated-signal -lsetjmp";
+
+  patches = (old.patches or [ ]) ++ [
+    ./patches/guile-wasi.patch
+    ./patches/guile-wasm-callbacks.patch
+  ];
 
   # A static Guile does not need a terminal editor or loadable modules.
   # Leaving these in pulls ncurses and libltdl into the target closure.
@@ -45,11 +53,19 @@ base.overrideAttrs (old: {
     builtins.filter (flag: !isReadlineFlag flag) (old.configureFlags or [ ])
     ++ [
       "--disable-jit"
+      "--disable-lto"
       "--disable-networking"
       "--disable-nls"
+      "--disable-posix"
       "--with-modules=no"
       "--with-threads=null"
       "--without-libreadline-prefix"
+      # wasi-libc's UTC-only mktime is sound. Gnulib cannot run its probe
+      # while cross-compiling and otherwise selects a larger fallback.
+      "gl_cv_func_working_mktime=yes"
+      # WASI has no asynchronous signals. wasi-libc's compatibility layer
+      # keeps Guile's in-process signal and raise API working synchronously.
+      "CPPFLAGS=-D_WASI_EMULATED_SIGNAL"
     ];
 
   # The target cannot run Guile's installed helper programs. Keep the static

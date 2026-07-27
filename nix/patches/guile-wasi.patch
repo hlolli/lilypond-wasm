@@ -1,0 +1,738 @@
+diff --git a/lib/fcntl.in.h b/lib/fcntl.in.h
+index 672cf85..0111acb 100644
+--- a/lib/fcntl.in.h
++++ b/lib/fcntl.in.h
+@@ -252,7 +252,15 @@ _GL_WARN_ON_USE (openat, "openat is not portable - "
+ #endif
+ 
+ #ifndef F_DUPFD
+-# define F_DUPFD 1
++/* WASI has fcntl but no file-descriptor duplication command.  Keep the
++   replacement command distinct from wasi-libc's F_GETFD value so gnulib can
++   compile and report the unsupported operation at run time.  Zero is the
++   usual POSIX value and wasi-libc leaves it unused.  */
++# if defined __wasi__
++#  define F_DUPFD 0
++# else
++#  define F_DUPFD 1
++# endif
+ #endif
+ 
+ #ifndef F_GETFD
+diff --git a/lib/flock.c b/lib/flock.c
+index 76e4040..7b0c876 100644
+--- a/lib/flock.c
++++ b/lib/flock.c
+@@ -27,1 +27,14 @@
+-#if defined _WIN32 && ! defined __CYGWIN__
++#if defined __wasi__
++
++# include <errno.h>
++
++int
++flock (int fd, int operation)
++{
++  (void) fd;
++  (void) operation;
++  errno = ENOSYS;
++  return -1;
++}
++
++#elif defined _WIN32 && ! defined __CYGWIN__
+diff --git a/lib/getaddrinfo.c b/lib/getaddrinfo.c
+index d019a35..c734ca6 100644
+--- a/lib/getaddrinfo.c
++++ b/lib/getaddrinfo.c
+@@ -75,6 +75,52 @@ freeaddrinfo (struct addrinfo *ai)
+ 
+ #else
+ 
++# if defined __wasi__
++
++#  include <errno.h>
++
++int
++getaddrinfo (const char *restrict nodename,
++             const char *restrict servname,
++             const struct addrinfo *restrict hints,
++             struct addrinfo **restrict res)
++#  undef getaddrinfo
++{
++  (void) nodename;
++  (void) servname;
++  (void) hints;
++  *res = NULL;
++  errno = ENOSYS;
++  return EAI_SYSTEM;
++}
++
++void
++freeaddrinfo (struct addrinfo *ai)
++#  undef freeaddrinfo
++{
++  (void) ai;
++}
++
++int
++getnameinfo (const struct sockaddr *restrict sa, socklen_t salen,
++             char *restrict node, socklen_t nodelen,
++             char *restrict service, socklen_t servicelen,
++             int flags)
++#  undef getnameinfo
++{
++  (void) sa;
++  (void) salen;
++  (void) node;
++  (void) nodelen;
++  (void) service;
++  (void) servicelen;
++  (void) flags;
++  errno = ENOSYS;
++  return EAI_SYSTEM;
++}
++
++# else
++
+ # if defined _WIN32 && !defined __CYGWIN__
+ #  define WINDOWS_NATIVE
+ # endif
+@@ -500,4 +546,5 @@ getnameinfo (const struct sockaddr *restrict sa, socklen_t salen,
+   return 0;
+ }
+ 
++# endif /* !__wasi__ */
+ #endif
+diff --git a/lib/spawni.c b/lib/spawni.c
+index 01cd650..eff770f 100644
+--- a/lib/spawni.c
++++ b/lib/spawni.c
+@@ -86,7 +86,25 @@
+ #define SPAWN_ERROR     127
+ 
+ 
+-#if defined _WIN32 && ! defined __CYGWIN__
++#if defined __wasi__
++
++int
++__spawni (pid_t *pid, const char *file,
++          const posix_spawn_file_actions_t *file_actions,
++          const posix_spawnattr_t *attrp, const char *const argv[],
++          const char *const envp[], int use_path)
++{
++  (void) pid;
++  (void) file;
++  (void) file_actions;
++  (void) attrp;
++  (void) argv;
++  (void) envp;
++  (void) use_path;
++  return ENOSYS;
++}
++
++#elif defined _WIN32 && ! defined __CYGWIN__
+ /* Native Windows API.  */
+ 
+ /* Define to 1 to enable DuplicateHandle optimization.
+diff --git a/lib/getdtablesize.c b/lib/getdtablesize.c
+index c4a564f..7b47cf4 100644
+--- a/lib/getdtablesize.c
++++ b/lib/getdtablesize.c
+@@ -20,8 +20,18 @@
+ /* Specification.  */
+ #include <unistd.h>
+ 
+-#if defined _WIN32 && ! defined __CYGWIN__
++#if defined __wasi__
+ 
++# include <limits.h>
++
++int
++getdtablesize (void)
++{
++  return INT_MAX;
++}
++
++#elif defined _WIN32 && ! defined __CYGWIN__
++
+ # include <stdio.h>
+ 
+ # if HAVE_MSVC_INVALID_PARAMETER_HANDLER
+diff --git a/lib/pipe.c b/lib/pipe.c
+index 6c48f27..d11d3f9 100644
+--- a/lib/pipe.c
++++ b/lib/pipe.c
+@@ -19,7 +19,19 @@
+ /* Specification.  */
+ #include <unistd.h>
+ 
+-#if defined _WIN32 && ! defined __CYGWIN__
++#if defined __wasi__
++
++# include <errno.h>
++
++int
++pipe (int fd[2])
++{
++  (void) fd;
++  errno = ENOSYS;
++  return -1;
++}
++
++#elif defined _WIN32 && ! defined __CYGWIN__
+ /* Native Windows API.  */
+ 
+ /* Get _pipe().  */
+diff --git a/lib/select.c b/lib/select.c
+index 2933a8f..12329d1 100644
+--- a/lib/select.c
++++ b/lib/select.c
+@@ -563,6 +563,9 @@
+ #include <stddef.h> /* NULL */
+ #include <errno.h>
+ #include <unistd.h>
++#if defined __wasi__
++# include <fcntl.h>
++#endif
+ 
+ #undef select
+ 
+@@ -580,7 +583,11 @@ rpl_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *xfds,
+       if (((rfds && FD_ISSET (i, rfds))
+            || (wfds && FD_ISSET (i, wfds))
+            || (xfds && FD_ISSET (i, xfds)))
++#if defined __wasi__
++          && fcntl (i, F_GETFL) < 0)
++#else
+           && dup2 (i, i) != i)
++#endif
+         return -1;
+     }
+ 
+diff --git a/lib/tempname.c b/lib/tempname.c
+index 17be6eb..0f4020b 100644
+--- a/lib/tempname.c
++++ b/lib/tempname.c
+@@ -113,7 +113,13 @@ random_bits (random_value *r, random_value s)
+   v = mix_random_values (v, tv.tv_nsec);
+ #endif
+ 
++#if defined __wasi__
++  /* CLOCK_REALTIME above is the only clock WASI provides here.  Avoid the
++     process-clock compatibility library for fallback entropy.  */
++  *r = v;
++#else
+   *r = mix_random_values (v, clock ());
++#endif
+   return false;
+ }
+ 
+diff --git a/lib/time_rz.c b/lib/time_rz.c
+index e9b795d..aa77419 100644
+--- a/lib/time_rz.c
++++ b/lib/time_rz.c
+@@ -192,10 +192,16 @@ setenv_TZ (char const *tz)
+ static bool
+ change_env (timezone_t tz)
+ {
++#if defined __wasi__
++  (void) tz;
++  errno = ENOSYS;
++  return false;
++#else
+   if (setenv_TZ (tz->tz_is_set ? tz->abbrs : NULL) != 0)
+     return false;
+   tzset ();
+   return true;
++#endif
+ }
+ 
+ /* Temporarily set the time zone to TZ, which must not be null.
+@@ -205,6 +212,11 @@ change_env (timezone_t tz)
+ static timezone_t
+ set_tz (timezone_t tz)
+ {
++#if defined __wasi__
++  (void) tz;
++  errno = ENOSYS;
++  return NULL;
++#else
+   char *env_tz = getenv_TZ ();
+   if (env_tz
+       ? tz->tz_is_set && strcmp (tz->abbrs, env_tz) == 0
+@@ -224,6 +236,7 @@ set_tz (timezone_t tz)
+         }
+       return old_tz;
+     }
++#endif
+ }
+ 
+ /* Restore an old setting returned by set_tz.  It must not be null.
+diff --git a/lib/times.c b/lib/times.c
+index 33bed34..21cc45a 100644
+--- a/lib/times.c
++++ b/lib/times.c
+@@ -22,6 +22,20 @@
+ /* Get times prototype. */
+ #include <sys/times.h>
+ 
++#if defined __wasi__
++
++# include <errno.h>
++
++clock_t
++times (struct tms *buffer)
++{
++  (void) buffer;
++  errno = ENOSYS;
++  return (clock_t) -1;
++}
++
++#else
++
+ /* Get round. */
+ #include <math.h>
+ 
+@@ -64,3 +78,5 @@ times (struct tms * buffer)
+ 
+   return clock ();
+ }
++
++#endif
+diff --git a/libguile/threads.c b/libguile/threads.c
+index d95ce42..e6fabd6 100644
+--- a/libguile/threads.c
++++ b/libguile/threads.c
+@@ -395,11 +395,15 @@ guilify_self_1 (struct GC_stack_base *base, int needs_unregister)
+   scm_i_pthread_cond_init (&t.sleep_cond, NULL);
+   scm_i_vm_prepare_stack (&t.vm);
+ 
++#if defined __wasi__
++  t.sleep_pipe[0] = t.sleep_pipe[1] = -1;
++#else
+   if (pipe2 (t.sleep_pipe, O_CLOEXEC) != 0)
+     /* FIXME: Error conditions during the initialization phase are handled
+        gracelessly since public functions such as `scm_init_guile ()'
+        currently have type `void'.  */
+     abort ();
++#endif
+ 
+   t.exited = 0;
+   t.guile_mode = 0;
+@@ -471,8 +475,10 @@ on_thread_exit (void *v)
+ 
+   t->exited = 1;
+ 
++#if !defined __wasi__
+   close (t->sleep_pipe[0]);
+   close (t->sleep_pipe[1]);
++#endif
+   t->sleep_pipe[0] = t->sleep_pipe[1] = -1;
+ 
+   scm_i_pthread_mutex_lock (&thread_admin_mutex);
+@@ -1525,6 +1531,9 @@ scm_std_select (int nfds,
+ 		fd_set *exceptfds,
+ 		struct timeval *timeout)
+ {
++#if defined __wasi__
++  return select (nfds, readfds, writefds, exceptfds, timeout);
++#else
+   fd_set my_readfds;
+   int res, eno, wakeup_fd;
+   scm_thread *t = SCM_I_CURRENT_THREAD;
+@@ -1578,6 +1587,7 @@ scm_std_select (int nfds,
+     }
+   errno = eno;
+   return res;
++#endif
+ }
+ 
+ /* Convenience API for blocking while in guile mode. */
+diff --git a/libguile/extensions.c b/libguile/extensions.c
+index bd165f8..e65db34 100644
+--- a/libguile/extensions.c
++++ b/libguile/extensions.c
+@@ -26,6 +26,7 @@
+ #include "gc.h"
+ #include "gsubr.h"
+ #include "foreign.h"
++#include "list.h"
+ #include "strings.h"
+ #include "threads.h"
+ 
+diff --git a/libguile/filesys.c b/libguile/filesys.c
+index 96a84f5..4726342 100644
+--- a/libguile/filesys.c
++++ b/libguile/filesys.c
+@@ -140,7 +140,7 @@
+ 
+ 
+ 
+-#ifdef HAVE_POSIX
++#if defined HAVE_POSIX || defined __wasi__
+ 
+ /* {Permissions}
+  */
+@@ -714,7 +714,7 @@ SCM_DEFINE (scm_lstat, "lstat", 1, 0, 0,
+ #undef FUNC_NAME
+ 
+ 
+-#ifdef HAVE_POSIX
++#if defined HAVE_POSIX || defined __wasi__
+ 
+ /* {Modifying Directories}
+  */
+@@ -1492,6 +1492,34 @@ SCM_DEFINE (scm_sendfile, "sendfile", 3, 1, 0,
+ #undef FUNC_NAME
+ 
+ #endif /* HAVE_POSIX */
++
++
++#if defined __wasi__ && !defined HAVE_POSIX
++SCM_DEFINE (scm_uname, "uname", 0, 0, 0,
++            (),
++            "Return a vector that describes the WASI target.")
++#define FUNC_NAME s_scm_uname
++{
++  SCM result = scm_c_make_vector (5, SCM_UNSPECIFIED);
++
++  SCM_SIMPLE_VECTOR_SET (result, 0, scm_from_utf8_string ("WASI"));
++  SCM_SIMPLE_VECTOR_SET (result, 1, scm_from_utf8_string (""));
++  SCM_SIMPLE_VECTOR_SET (result, 2, scm_from_utf8_string ("preview1"));
++  SCM_SIMPLE_VECTOR_SET (result, 3, scm_from_utf8_string ("wasi-libc"));
++  SCM_SIMPLE_VECTOR_SET (result, 4, scm_from_utf8_string ("wasm32"));
++  return result;
++}
++#undef FUNC_NAME
++
++SCM_DEFINE (scm_getpid, "getpid", 0, 0, 0,
++            (),
++            "Return the synthetic process ID 1 on WASI.")
++#define FUNC_NAME s_scm_getpid
++{
++  return scm_from_int (1);
++}
++#undef FUNC_NAME
++#endif
+ 
+ 
+ /* Essential procedures used in (system base compile).  */
+@@ -1827,5 +1855,10 @@ SCM_DEFINE (scm_umask, "umask", 0, 1, 0,
+ #define FUNC_NAME s_scm_umask
+ {
++#if defined __wasi__
++  (void) mode;
++  errno = ENOSYS;
++  SCM_SYSERROR;
++#else
+   mode_t mask;
+   if (SCM_UNBNDP (mode))
+     {
+@@ -1837,6 +1870,7 @@ SCM_DEFINE (scm_umask, "umask", 0, 1, 0,
+       mask = umask (scm_to_uint (mode));
+     }
+   return scm_from_uint (mask);
++#endif
+ }
+ #undef FUNC_NAME
+ 
+@@ -2302,7 +2336,6 @@ SCM_DEFINE (scm_rewinddir, "rewinddir", 1, 0, 0,
+ #undef FUNC_NAME
+ 
+ 
+-#ifdef HAVE_POSIX
+ static int
+ scm_dir_print (SCM exp, SCM port, scm_print_state *pstate SCM_UNUSED)
+ {
+@@ -2329,18 +2362,17 @@ scm_dir_free (SCM p)
+ 
+   return 0;
+ }
+-#endif
+ 
+ 
+ 
+ void
+ scm_init_filesys ()
+ {
+-#ifdef HAVE_POSIX
+   scm_tc16_dir = scm_make_smob_type ("directory", 0);
+   scm_set_smob_free (scm_tc16_dir, scm_dir_free);
+   scm_set_smob_print (scm_tc16_dir, scm_dir_print);
+ 
++#if defined HAVE_POSIX || defined __wasi__
+ #ifdef O_RDONLY
+   scm_c_define ("O_RDONLY", scm_from_int (O_RDONLY));
+ #endif 	       
+diff --git a/libguile/stime.c b/libguile/stime.c
+index e17f582..f9f7614 100644
+--- a/libguile/stime.c
++++ b/libguile/stime.c
+@@ -125,6 +125,29 @@ get_internal_real_time_posix_timer (void)
+      ts.tv_nsec - posix_real_time_base.tv_nsec);
+ }
+ 
++#if defined __wasi__
++static struct timespec wasi_run_time_base;
++static int wasi_run_time_base_valid;
++
++static long
++get_internal_run_time_wasi (void)
++{
++  struct timespec ts;
++
++  if (clock_gettime (CLOCK_MONOTONIC, &ts) != 0)
++    return 0;
++  if (!wasi_run_time_base_valid)
++    {
++      wasi_run_time_base = ts;
++      wasi_run_time_base_valid = 1;
++      return 0;
++    }
++  return time_from_seconds_and_nanoseconds
++    (ts.tv_sec - wasi_run_time_base.tv_sec,
++     ts.tv_nsec - wasi_run_time_base.tv_nsec);
++}
++#endif
++
+ #if defined _POSIX_CPUTIME && defined CLOCK_PROCESS_CPUTIME_ID
+ /* You see, FreeBSD defines _POSIX_CPUTIME but not
+    CLOCK_PROCESS_CPUTIME_ID.  */
+@@ -338,6 +361,15 @@ getzone (void)
+ static char **
+ setzone (SCM zone, int pos, const char *subr)
+ {
++#if defined __wasi__
++  if (!SCM_UNBNDP (zone))
++    {
++      SCM_ASSERT_TYPE (scm_is_string (zone), zone, pos, subr, "string");
++      errno = ENOSYS;
++      scm_syserror (subr);
++    }
++  return NULL;
++#else
+   char **oldenv = 0;
+ 
+   if (!SCM_UNBNDP (zone))
+@@ -359,6 +391,7 @@ setzone (SCM zone, int pos, const char *subr)
+       environ = tmpenv;
+     }
+   return oldenv;
++#endif
+ }
+ 
+ static void
+@@ -841,6 +874,11 @@ scm_init_stime ()
+       errno = 0;
+   }
+ #endif /* HAVE_POSIX_CPUTIME */
++
++#if defined __wasi__
++  get_internal_run_time = get_internal_run_time_wasi;
++  (void) get_internal_run_time_wasi ();
++#endif
+ #endif /* HAVE_CLOCKTIME */
+ 
+   /* If needed, init and use gettimeofday timer. */
+diff --git a/libguile/simpos.c b/libguile/simpos.c
+index b8b3336..62f8786 100644
+--- a/libguile/simpos.c
++++ b/libguile/simpos.c
+@@ -48,6 +48,13 @@ SCM_DEFINE (scm_system, "system", 0, 1, 0,
+ 	    "indicating whether the command processor is available.")
+ #define FUNC_NAME s_scm_system
+ {
++#if defined __wasi__
++  if (SCM_UNBNDP (cmd))
++    return SCM_BOOL_F;
++  SCM_VALIDATE_STRING (1, cmd);
++  errno = ENOSYS;
++  SCM_SYSERROR;
++#else
+   int rv, eno;
+   char *c_cmd;
+   
+@@ -64,6 +71,7 @@ SCM_DEFINE (scm_system, "system", 0, 1, 0,
+   if (rv == -1 || (rv == 127 && errno != 0))
+     SCM_SYSERROR;
+   return scm_from_int (rv);
++#endif
+ }
+ #undef FUNC_NAME
+ 
+diff --git a/libguile/random.c b/libguile/random.c
+index b9ae17a..26d1b7a 100644
+--- a/libguile/random.c
++++ b/libguile/random.c
+@@ -726,8 +726,10 @@ random_state_of_last_resort (void)
+   SCM time_of_day = scm_gettimeofday ();
+   SCM sources = scm_list_n
+     (scm_from_unsigned_integer (SCM_UNPACK (time_of_day)),  /* heap addr */
++#if !defined __wasi__
+      /* Avoid scm_getpid, since it depends on HAVE_POSIX. */
+      scm_from_unsigned_integer (getpid ()),                 /* process ID */
++#endif
+      scm_get_internal_real_time (), /* high-resolution process timer */
+      scm_from_unsigned_integer ((scm_t_bits) &time_of_day), /* stack addr */
+      scm_car (time_of_day), /* seconds since midnight 1970-01-01 UTC */
+diff --git a/libguile/fports.c b/libguile/fports.c
+index 05e9c69..0f04af0 100644
+--- a/libguile/fports.c
++++ b/libguile/fports.c
+@@ -101,10 +101,15 @@ scm_i_evict_port (void *closure, SCM port)
+       scm_t_fport *fp = SCM_FSTREAM (port);
+       if ((fp != NULL) && (fp->fdes == fd))
+ 	{
++#if defined __wasi__
++	  errno = ENOSYS;
++	  scm_syserror ("scm_evict_ports");
++#else
+ 	  fp->fdes = dup (fd);
+ 	  if (fp->fdes == -1)
+ 	    scm_syserror ("scm_evict_ports");
+ 	  scm_set_port_revealed_x (port, scm_from_int (0));
++#endif
+ 	}
+     }
+ }
+diff --git a/libguile/ioext.c b/libguile/ioext.c
+index 118023a..1a66dab 100644
+--- a/libguile/ioext.c
++++ b/libguile/ioext.c
+@@ -29,6 +29,10 @@
+ #include <stdio.h>
+ #include <unistd.h>
+ 
++#if defined __wasi__
++# include <wasi/libc.h>
++#endif
++
+ #ifdef HAVE_IO_H
+ #include <io.h>
+ #endif
+@@ -83,7 +87,10 @@ SCM_DEFINE (scm_redirect_port, "redirect-port", 2, 0, 0,
+ 	    "revealed counts.")
+ #define FUNC_NAME s_scm_redirect_port
+ {
+-  int ans, oldfd, newfd;
++  int oldfd, newfd;
++#if !defined __wasi__
++  int ans;
++#endif
+   scm_t_fport *fp;
+ 
+   old = SCM_COERCE_OUTPORT (old);
+@@ -96,6 +103,10 @@ SCM_DEFINE (scm_redirect_port, "redirect-port", 2, 0, 0,
+   newfd = fp->fdes;
+   if (oldfd != newfd)
+     {
++#if defined __wasi__
++      errno = ENOSYS;
++      SCM_SYSERROR;
++#else
+       /* Ensure there is nothing in either port's input or output
+          buffers.  */
+       if (SCM_OUTPUT_PORT_P (old))
+@@ -113,6 +124,7 @@ SCM_DEFINE (scm_redirect_port, "redirect-port", 2, 0, 0,
+ 	SCM_SYSERROR;
+ 
+       SCM_PORT (new)->rw_random = SCM_PORT (old)->rw_random;
++#endif
+     }
+   return SCM_UNSPECIFIED;
+ }
+@@ -125,7 +137,10 @@ SCM_DEFINE (scm_dup_to_fdes, "dup->fdes", 1, 1, 0,
+ 	    "file port or a file descriptor.")
+ #define FUNC_NAME s_scm_dup_to_fdes
+ {
+-  int oldfd, newfd, rv;
++  int oldfd, newfd;
++#if !defined __wasi__
++  int rv;
++#endif
+ 
+   fd_or_port = SCM_COERCE_OUTPORT (fd_or_port);
+ 
+@@ -139,20 +154,30 @@ SCM_DEFINE (scm_dup_to_fdes, "dup->fdes", 1, 1, 0,
+ 
+   if (SCM_UNBNDP (fd))
+     {
++#if defined __wasi__
++      errno = ENOSYS;
++      SCM_SYSERROR;
++#else
+       newfd = dup (oldfd);
+       if (newfd == -1)
+ 	SCM_SYSERROR;
+       fd = scm_from_int (newfd);
++#endif
+     }
+   else
+     {
+       newfd = scm_to_int (fd);
+       if (oldfd != newfd)
+ 	{
++#if defined __wasi__
++	  errno = ENOSYS;
++	  SCM_SYSERROR;
++#else
+ 	  scm_evict_ports (newfd);	/* see scsh manual.  */
+ 	  rv = dup2 (oldfd, newfd);
+ 	  if (rv == -1)
+ 	    SCM_SYSERROR;
++#endif
+ 	}
+     }
+   return fd;
+@@ -174,13 +199,22 @@ SCM_DEFINE (scm_dup2, "dup2", 2, 0, 0,
+ {
+   int c_oldfd;
+   int c_newfd;
++#if !defined __wasi__
+   int rv;
++#endif
+ 
+   c_oldfd = scm_to_int (oldfd);
+   c_newfd = scm_to_int (newfd);
++#if defined __wasi__
++  (void) c_oldfd;
++  (void) c_newfd;
++  errno = ENOSYS;
++  SCM_SYSERROR;
++#else
+   rv = dup2 (c_oldfd, c_newfd);
+   if (rv == -1)
+     SCM_SYSERROR;
++#endif
+   return SCM_UNSPECIFIED;
+ }
+ #undef FUNC_NAME
+@@ -259,7 +293,9 @@ SCM_DEFINE (scm_primitive_move_to_fdes, "primitive-move->fdes", 2, 0, 0,
+   scm_t_fport *stream;
+   int old_fd;
+   int new_fd;
++#if !defined __wasi__
+   int rv;
++#endif
+ 
+   port = SCM_COERCE_OUTPORT (port);
+ 
+@@ -272,12 +308,19 @@ SCM_DEFINE (scm_primitive_move_to_fdes, "primitive-move->fdes", 2, 0, 0,
+       return SCM_BOOL_F;
+     }
+   scm_evict_ports (new_fd);
++#if defined __wasi__
++  if (__wasilibc_fd_renumber (old_fd, new_fd) != 0)
++    SCM_SYSERROR;
++#else
+   rv = dup2 (old_fd, new_fd);
+   if (rv == -1)
+     SCM_SYSERROR;
++#endif
+   stream->fdes = new_fd;
+   scm_run_fdes_finalizers (old_fd);
++#if !defined __wasi__
+   SCM_SYSCALL (close (old_fd));  
++#endif
+   return SCM_BOOL_T;
+ }
+ #undef FUNC_NAME

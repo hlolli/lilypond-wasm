@@ -37,9 +37,10 @@
           boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix { };
           gmp = pkgsWasm.callPackage ./nix/gmp.nix { };
           libffi = pkgsWasm.callPackage ./nix/libffi.nix { };
+          libunistring = pkgsWasm.callPackage ./nix/libunistring.nix { };
           guile = pkgsWasm.callPackage ./nix/guile.nix {
             boehmgc = boehm-gc;
-            inherit gmp;
+            inherit gmp libunistring;
             libffi = libffi;
           };
           default = guile;

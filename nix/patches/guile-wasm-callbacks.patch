@@ -1,0 +1,693 @@
+diff --git a/libguile/atomic.c b/libguile/atomic.c
+index adb2a0c..5776a83 100644
+--- a/libguile/atomic.c
++++ b/libguile/atomic.c
+@@ -127,8 +127,7 @@ scm_init_atomic (void)
+ void
+ scm_register_atomic (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_atomic",
+-			    (scm_t_extension_init_func) scm_init_atomic,
+-			    NULL);
++                            scm_init_atomic);
+ }
+diff --git a/libguile/bytevectors.c b/libguile/bytevectors.c
+index 3b984c6..1c7cdb0 100644
+--- a/libguile/bytevectors.c
++++ b/libguile/bytevectors.c
+@@ -2301,10 +2301,9 @@ scm_bootstrap_bytevectors (void)
+   scm_i_native_endianness = sym_little;
+ #endif
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_bytevectors",
+-			    (scm_t_extension_init_func) scm_init_bytevectors,
+-			    NULL);
++                            scm_init_bytevectors);
+ 
+   scm_i_register_vector_constructor
+     (scm_i_array_element_types[SCM_ARRAY_ELEMENT_TYPE_VU8],
+diff --git a/libguile/custom-ports.c b/libguile/custom-ports.c
+index 6e2b2ea..c244b5e 100644
+--- a/libguile/custom-ports.c
++++ b/libguile/custom-ports.c
+@@ -198,8 +198,7 @@ scm_init_custom_ports (void)
+ void
+ scm_register_custom_ports (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_custom_ports",
+-                            (scm_t_extension_init_func) scm_init_custom_ports,
+-                            NULL);
++                            scm_init_custom_ports);
+ }
+diff --git a/libguile/extensions.c b/libguile/extensions.c
+index 61c975e..4c937d7 100644
+--- a/libguile/extensions.c
++++ b/libguile/extensions.c
+@@ -40,6 +40,7 @@ typedef struct extension_t
+   const char *lib;
+   const char *init;
+   void (*func)(void *);
++  void (*func_no_data)(void);
+   void *data;
+ } extension_t;
+ 
+@@ -66,6 +67,7 @@ scm_c_register_extension (const char *lib, const char *init,
+     ext->lib = NULL;
+   ext->init = scm_strdup (init);
+   ext->func = func;
++  ext->func_no_data = NULL;
+   ext->data = data;
+ 
+   scm_i_pthread_mutex_lock (&ext_lock);
+@@ -74,6 +76,26 @@ scm_c_register_extension (const char *lib, const char *init,
+   scm_i_pthread_mutex_unlock (&ext_lock);
+ }
+ 
++void
++scm_c_register_extension_no_data (const char *lib, const char *init,
++                                  void (*func) (void))
++{
++  extension_t *ext = scm_malloc (sizeof(extension_t));
++  if (lib)
++    ext->lib = scm_strdup (lib);
++  else
++    ext->lib = NULL;
++  ext->init = scm_strdup (init);
++  ext->func = NULL;
++  ext->func_no_data = func;
++  ext->data = NULL;
++
++  scm_i_pthread_mutex_lock (&ext_lock);
++  ext->next = registered_extensions;
++  registered_extensions = ext;
++  scm_i_pthread_mutex_unlock (&ext_lock);
++}
++
+ static void
+ load_extension (SCM lib, SCM init)
+ {
+@@ -101,7 +123,10 @@ load_extension (SCM lib, SCM init)
+ 	if ((ext->lib == NULL || !strcmp (ext->lib, clib))
+ 	    && !strcmp (ext->init, cinit))
+ 	  {
+-	    ext->func (ext->data);
++            if (ext->func)
++              ext->func (ext->data);
++            else
++              ext->func_no_data ();
+             found = 1;
+ 	    break;
+ 	  }
+diff --git a/libguile/extensions.h b/libguile/extensions.h
+index fc690a4..a9f5b3e 100644
+--- a/libguile/extensions.h
++++ b/libguile/extensions.h
+@@ -27,9 +27,12 @@
+ 
+ 
+ typedef void (*scm_t_extension_init_func)(void*);
++typedef void (*scm_t_extension_init_func_no_data)(void);
+ 
+ SCM_API void scm_c_register_extension (const char *lib, const char *init,
+ 				       void (*func) (void *), void *data);
++SCM_API void scm_c_register_extension_no_data
++  (const char *lib, const char *init, void (*func) (void));
+ 
+ SCM_API void scm_c_load_extension (const char *lib, const char *init);
+ SCM_API SCM scm_load_extension (SCM lib, SCM init);
+diff --git a/libguile/fdes-finalizers.c b/libguile/fdes-finalizers.c
+index 4b3fced..9a41fc4 100644
+--- a/libguile/fdes-finalizers.c
++++ b/libguile/fdes-finalizers.c
+@@ -132,8 +132,7 @@ scm_register_fdes_finalizers ()
+ {
+   fdes_finalizers = scm_c_make_hash_table (0);
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_fdes_finalizers",
+-                            (scm_t_extension_init_func) scm_init_fdes_finalizers,
+-                            NULL);
++                            scm_init_fdes_finalizers);
+ }
+diff --git a/libguile/foreign-object.c b/libguile/foreign-object.c
+index 21dc2c0..808dc63 100644
+--- a/libguile/foreign-object.c
++++ b/libguile/foreign-object.c
+@@ -225,8 +225,7 @@ scm_init_foreign_object (void)
+ void
+ scm_register_foreign_object (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_foreign_object",
+-                            (scm_t_extension_init_func)scm_init_foreign_object,
+-                            NULL);
++                            scm_init_foreign_object);
+ }
+diff --git a/libguile/foreign.c b/libguile/foreign.c
+index b9edf72..949e515 100644
+--- a/libguile/foreign.c
++++ b/libguile/foreign.c
+@@ -1393,9 +1393,8 @@ scm_init_foreign (void)
+ void
+ scm_register_foreign (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_foreign",
+-                            (scm_t_extension_init_func)scm_init_foreign,
+-                            NULL);
++                            scm_init_foreign);
+   pointer_weak_refs = scm_c_make_weak_table (0, SCM_WEAK_TABLE_KIND_KEY);
+ }
+diff --git a/libguile/fports.c b/libguile/fports.c
+index 51c5b37..22d8ba7 100644
+--- a/libguile/fports.c
++++ b/libguile/fports.c
+@@ -780,10 +780,9 @@ scm_init_fports ()
+ {
+   scm_file_port_type = scm_make_fptob ();
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_ice_9_fports",
+-			    (scm_t_extension_init_func) scm_init_ice_9_fports,
+-			    NULL);
++                            scm_init_ice_9_fports);
+ 
+   /* The following bindings are used early in boot-9.scm.  */
+ 
+diff --git a/libguile/hashtab.c b/libguile/hashtab.c
+index b4f004c..e33477f 100644
+--- a/libguile/hashtab.c
++++ b/libguile/hashtab.c
+@@ -378,6 +378,51 @@ SCM_DEFINE (scm_hash_clear_x, "hash-clear!", 1, 0, 0,
+ 
+ 
+ 
++/* WebAssembly validates indirect-call signatures at run time.  Do not cast
++   the two-argument built-in hash and association functions to the
++   three-argument callback types; use exact-signature adapters instead.  */
++static unsigned long
++scm_ihashq_with_closure (SCM obj, unsigned long max, void *closure)
++{
++  (void) closure;
++  return scm_ihashq (obj, max);
++}
++
++static unsigned long
++scm_ihashv_with_closure (SCM obj, unsigned long max, void *closure)
++{
++  (void) closure;
++  return scm_ihashv (obj, max);
++}
++
++static unsigned long
++scm_ihash_with_closure (SCM obj, unsigned long max, void *closure)
++{
++  (void) closure;
++  return scm_ihash (obj, max);
++}
++
++static SCM
++scm_sloppy_assq_with_closure (SCM obj, SCM alist, void *closure)
++{
++  (void) closure;
++  return scm_sloppy_assq (obj, alist);
++}
++
++static SCM
++scm_sloppy_assv_with_closure (SCM obj, SCM alist, void *closure)
++{
++  (void) closure;
++  return scm_sloppy_assv (obj, alist);
++}
++
++static SCM
++scm_sloppy_assoc_with_closure (SCM obj, SCM alist, void *closure)
++{
++  (void) closure;
++  return scm_sloppy_assoc (obj, alist);
++}
++
+ SCM_DEFINE (scm_hashq_get_handle, "hashq-get-handle", 2, 0, 0,
+             (SCM table, SCM key),
+ 	    "This procedure returns the @code{(key . value)} pair from the\n"
+@@ -387,8 +432,8 @@ SCM_DEFINE (scm_hashq_get_handle, "hashq-get-handle", 2, 0, 0,
+ #define FUNC_NAME s_scm_hashq_get_handle
+ {
+   return scm_hash_fn_get_handle (table, key,
+-				 (scm_t_hash_fn) scm_ihashq,
+-				 (scm_t_assoc_fn) scm_sloppy_assq,
++				 scm_ihashq_with_closure,
++				 scm_sloppy_assq_with_closure,
+ 				 0);
+ }
+ #undef FUNC_NAME
+@@ -402,8 +447,8 @@ SCM_DEFINE (scm_hashq_create_handle_x, "hashq-create-handle!", 3, 0, 0,
+ #define FUNC_NAME s_scm_hashq_create_handle_x
+ {
+   return scm_hash_fn_create_handle_x (table, key, init,
+-				      (scm_t_hash_fn) scm_ihashq,
+-				      (scm_t_assoc_fn) scm_sloppy_assq,
++				      scm_ihashq_with_closure,
++				      scm_sloppy_assq_with_closure,
+ 				      0);
+ }
+ #undef FUNC_NAME
+@@ -424,8 +469,8 @@ SCM_DEFINE (scm_hashq_ref, "hashq-ref", 2, 1, 0,
+     return scm_weak_table_refq (table, key, dflt);
+ 
+   return scm_hash_fn_ref (table, key, dflt,
+-			  (scm_t_hash_fn) scm_ihashq,
+-			  (scm_t_assoc_fn) scm_sloppy_assq,
++			  scm_ihashq_with_closure,
++			  scm_sloppy_assq_with_closure,
+ 			  0);
+ }
+ #undef FUNC_NAME
+@@ -445,8 +490,8 @@ SCM_DEFINE (scm_hashq_set_x, "hashq-set!", 3, 0, 0,
+     }
+ 
+   return scm_hash_fn_set_x (table, key, val,
+-			    (scm_t_hash_fn) scm_ihashq,
+-			    (scm_t_assoc_fn) scm_sloppy_assq,
++			    scm_ihashq_with_closure,
++			    scm_sloppy_assq_with_closure,
+ 			    0);
+ }
+ #undef FUNC_NAME
+@@ -470,8 +515,8 @@ SCM_DEFINE (scm_hashq_remove_x, "hashq-remove!", 2, 0, 0,
+     }
+ 
+   return scm_hash_fn_remove_x (table, key,
+-			       (scm_t_hash_fn) scm_ihashq,
+-			       (scm_t_assoc_fn) scm_sloppy_assq,
++			       scm_ihashq_with_closure,
++			       scm_sloppy_assq_with_closure,
+ 			       0);
+ }
+ #undef FUNC_NAME
+@@ -488,8 +533,8 @@ SCM_DEFINE (scm_hashv_get_handle, "hashv-get-handle", 2, 0, 0,
+ #define FUNC_NAME s_scm_hashv_get_handle
+ {
+   return scm_hash_fn_get_handle (table, key,
+-				 (scm_t_hash_fn) scm_ihashv,
+-				 (scm_t_assoc_fn) scm_sloppy_assv,
++				 scm_ihashv_with_closure,
++				 scm_sloppy_assv_with_closure,
+ 				 0);
+ }
+ #undef FUNC_NAME
+@@ -503,8 +548,8 @@ SCM_DEFINE (scm_hashv_create_handle_x, "hashv-create-handle!", 3, 0, 0,
+ #define FUNC_NAME s_scm_hashv_create_handle_x
+ {
+   return scm_hash_fn_create_handle_x (table, key, init,
+-				      (scm_t_hash_fn) scm_ihashv,
+-				      (scm_t_assoc_fn) scm_sloppy_assv,
++				      scm_ihashv_with_closure,
++				      scm_sloppy_assv_with_closure,
+ 				      0);
+ }
+ #undef FUNC_NAME
+@@ -533,8 +578,8 @@ SCM_DEFINE (scm_hashv_ref, "hashv-ref", 2, 1, 0,
+                                  (void *) SCM_UNPACK (key), dflt);
+ 
+   return scm_hash_fn_ref (table, key, dflt,
+-			  (scm_t_hash_fn) scm_ihashv,
+-			  (scm_t_assoc_fn) scm_sloppy_assv,
++			  scm_ihashv_with_closure,
++			  scm_sloppy_assv_with_closure,
+ 			  0);
+ }
+ #undef FUNC_NAME
+@@ -556,8 +601,8 @@ SCM_DEFINE (scm_hashv_set_x, "hashv-set!", 3, 0, 0,
+     }
+ 
+   return scm_hash_fn_set_x (table, key, val,
+-			    (scm_t_hash_fn) scm_ihashv,
+-			    (scm_t_assoc_fn) scm_sloppy_assv,
++			    scm_ihashv_with_closure,
++			    scm_sloppy_assv_with_closure,
+ 			    0);
+ }
+ #undef FUNC_NAME
+@@ -578,8 +623,8 @@ SCM_DEFINE (scm_hashv_remove_x, "hashv-remove!", 2, 0, 0,
+     }
+ 
+   return scm_hash_fn_remove_x (table, key,
+-			       (scm_t_hash_fn) scm_ihashv,
+-			       (scm_t_assoc_fn) scm_sloppy_assv,
++			       scm_ihashv_with_closure,
++			       scm_sloppy_assv_with_closure,
+ 			       0);
+ }
+ #undef FUNC_NAME
+@@ -595,8 +640,8 @@ SCM_DEFINE (scm_hash_get_handle, "hash-get-handle", 2, 0, 0,
+ #define FUNC_NAME s_scm_hash_get_handle
+ {
+   return scm_hash_fn_get_handle (table, key,
+-				 (scm_t_hash_fn) scm_ihash,
+-				 (scm_t_assoc_fn) scm_sloppy_assoc,
++				 scm_ihash_with_closure,
++				 scm_sloppy_assoc_with_closure,
+ 				 0);
+ }
+ #undef FUNC_NAME
+@@ -610,8 +655,8 @@ SCM_DEFINE (scm_hash_create_handle_x, "hash-create-handle!", 3, 0, 0,
+ #define FUNC_NAME s_scm_hash_create_handle_x
+ {
+   return scm_hash_fn_create_handle_x (table, key, init,
+-				      (scm_t_hash_fn) scm_ihash,
+-				      (scm_t_assoc_fn) scm_sloppy_assoc,
++				      scm_ihash_with_closure,
++				      scm_sloppy_assoc_with_closure,
+ 				      0);
+ }
+ #undef FUNC_NAME
+@@ -640,8 +685,8 @@ SCM_DEFINE (scm_hash_ref, "hash-ref", 2, 1, 0,
+                                  (void *) SCM_UNPACK (key), dflt);
+ 
+   return scm_hash_fn_ref (table, key, dflt,
+-			  (scm_t_hash_fn) scm_ihash,
+-			  (scm_t_assoc_fn) scm_sloppy_assoc,
++			  scm_ihash_with_closure,
++			  scm_sloppy_assoc_with_closure,
+ 			  0);
+ }
+ #undef FUNC_NAME
+@@ -664,8 +709,8 @@ SCM_DEFINE (scm_hash_set_x, "hash-set!", 3, 0, 0,
+     }
+ 
+   return scm_hash_fn_set_x (table, key, val,
+-			    (scm_t_hash_fn) scm_ihash,
+-			    (scm_t_assoc_fn) scm_sloppy_assoc,
++			    scm_ihash_with_closure,
++			    scm_sloppy_assoc_with_closure,
+ 			    0);
+ }
+ #undef FUNC_NAME
+@@ -687,8 +732,8 @@ SCM_DEFINE (scm_hash_remove_x, "hash-remove!", 2, 0, 0,
+     }
+ 
+   return scm_hash_fn_remove_x (table, key,
+-			       (scm_t_hash_fn) scm_ihash,
+-			       (scm_t_assoc_fn) scm_sloppy_assoc,
++			       scm_ihash_with_closure,
++			       scm_sloppy_assoc_with_closure,
+ 			       0);
+ }
+ #undef FUNC_NAME
+diff --git a/libguile/i18n.c b/libguile/i18n.c
+index a568522..97d2c43 100644
+--- a/libguile/i18n.c
++++ b/libguile/i18n.c
+@@ -1888,10 +1888,9 @@ scm_init_i18n ()
+ void
+ scm_bootstrap_i18n ()
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_i18n",
+-			    (scm_t_extension_init_func) scm_init_i18n,
+-			    NULL);
++                            scm_init_i18n);
+ 
+ }
+ 
+diff --git a/libguile/instructions.c b/libguile/instructions.c
+index dcee8a2..e1b2067 100644
+--- a/libguile/instructions.c
++++ b/libguile/instructions.c
+@@ -196,10 +196,9 @@ SCM_DEFINE (scm_instruction_list, "instruction-list", 0, 0, 0,
+ void
+ scm_bootstrap_instructions (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_instructions",
+-                            (scm_t_extension_init_func)scm_init_instructions,
+-                            NULL);
++                            scm_init_instructions);
+ }
+ 
+ void
+diff --git a/libguile/intrinsics.c b/libguile/intrinsics.c
+index 99c044c..15eaec0 100644
+--- a/libguile/intrinsics.c
++++ b/libguile/intrinsics.c
+@@ -692,10 +692,9 @@ scm_bootstrap_intrinsics (void)
+   scm_vm_intrinsics.struct_set_x_immediate = struct_set_x_immediate;
+   scm_vm_intrinsics.symbol_to_string = scm_symbol_to_string;
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_intrinsics",
+-                            (scm_t_extension_init_func)scm_init_intrinsics,
+-                            NULL);
++                            scm_init_intrinsics);
+ }
+ 
+ void
+diff --git a/libguile/ioext.c b/libguile/ioext.c
+index 8f56911..ab4f095 100644
+--- a/libguile/ioext.c
++++ b/libguile/ioext.c
+@@ -323,9 +323,8 @@ scm_init_ioext ()
+ {
+   scm_add_feature ("i/o-extensions");
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_ice_9_ioext",
+-			    (scm_t_extension_init_func) scm_init_ice_9_ioext,
+-			    NULL);
++                            scm_init_ice_9_ioext);
+ }
+ 
+diff --git a/libguile/loader.c b/libguile/loader.c
+index 2bd66d9..4f5ff47 100644
+--- a/libguile/loader.c
++++ b/libguile/loader.c
+@@ -834,9 +834,9 @@ scm_bootstrap_loader (void)
+   if (page_size & (page_size - 1))
+     abort ();
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_loader",
+-                            (scm_t_extension_init_func)scm_init_loader, NULL);
++                            scm_init_loader);
+ }
+ 
+ void
+diff --git a/libguile/modules.c b/libguile/modules.c
+index 0e8f083..52ea6c4 100644
+--- a/libguile/modules.c
++++ b/libguile/modules.c
+@@ -196,6 +196,20 @@ scm_maybe_resolve_module (SCM name)
+                      k_ensure, SCM_BOOL_F);
+ }
+ 
++struct module_init_data
++{
++  void (*init) (void *);
++  void *data;
++};
++
++static SCM
++call_module_init (void *data)
++{
++  struct module_init_data *module_init = data;
++  module_init->init (module_init->data);
++  return SCM_UNSPECIFIED;
++}
++
+ SCM
+ scm_c_define_module (const char *name,
+ 		     void (*init)(void *), void *data)
+@@ -203,7 +217,10 @@ scm_c_define_module (const char *name,
+   SCM module = scm_call_1 (SCM_VARIABLE_REF (define_module_star_var),
+ 			   convert_module_name (name));
+   if (init)
+-    scm_c_call_with_current_module (module, (SCM (*)(void*))init, data);
++    {
++      struct module_init_data module_init = { init, data };
++      scm_c_call_with_current_module (module, call_module_init, &module_init);
++    }
+   return module;
+ }
+ 
+diff --git a/libguile/poll.c b/libguile/poll.c
+index 82281ff..48e27c5 100644
+--- a/libguile/poll.c
++++ b/libguile/poll.c
+@@ -222,8 +222,7 @@ scm_init_poll (void)
+ void
+ scm_register_poll (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_poll",
+-			    (scm_t_extension_init_func) scm_init_poll,
+-			    NULL);
++                            scm_init_poll);
+ }
+diff --git a/libguile/ports.c b/libguile/ports.c
+index e9919a1..fe12cf2 100644
+--- a/libguile/ports.c
++++ b/libguile/ports.c
+@@ -4232,10 +4232,9 @@ scm_init_ports (void)
+   /* Use the locale as the default port encoding.  */
+   scm_i_set_default_port_encoding (locale_charset ());
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_ice_9_ports",
+-			    (scm_t_extension_init_func) scm_init_ice_9_ports,
+-			    NULL);
++                            scm_init_ice_9_ports);
+ 
+   /* The following bindings are used early in boot-9.scm.  */
+ 
+diff --git a/libguile/posix.c b/libguile/posix.c
+index 78ce03e..4f0f383 100644
+--- a/libguile/posix.c
++++ b/libguile/posix.c
+@@ -2713,8 +2713,7 @@ scm_init_posix ()
+   scm_add_feature ("fork");
+ #endif /* HAVE_FORK */
+   scm_add_feature ("popen");
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_popen",
+-			    (scm_t_extension_init_func) scm_init_popen,
+-			    NULL);
++                            scm_init_popen);
+ }
+diff --git a/libguile/programs.c b/libguile/programs.c
+index 81495a5..8a00fc0 100644
+--- a/libguile/programs.c
++++ b/libguile/programs.c
+@@ -378,9 +378,9 @@ scm_i_program_arity (SCM program, int *req, int *opt, int *rest)
+ void
+ scm_bootstrap_programs (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_programs",
+-                            (scm_t_extension_init_func)scm_init_programs, NULL);
++                            scm_init_programs);
+ }
+ 
+ void
+diff --git a/libguile/r6rs-ports.c b/libguile/r6rs-ports.c
+index ffa1e1b..76f4915 100644
+--- a/libguile/r6rs-ports.c
++++ b/libguile/r6rs-ports.c
+@@ -912,10 +912,9 @@ SCM_DEFINE (scm_get_string_n_x,
+ void
+ scm_register_r6rs_ports (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_r6rs_ports",
+-			    (scm_t_extension_init_func) scm_init_r6rs_ports,
+-			    NULL);
++                            scm_init_r6rs_ports);
+ 
+   initialize_bytevector_input_ports ();
+   initialize_bytevector_output_ports ();
+diff --git a/libguile/srfi-4.c b/libguile/srfi-4.c
+index 23896c3..bef2ee3 100644
+--- a/libguile/srfi-4.c
++++ b/libguile/srfi-4.c
+@@ -312,10 +312,9 @@ scm_bootstrap_srfi_4 (void)
+   REGISTER (c32, C32);
+   REGISTER (c64, C64);
+ 
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_srfi_4",
+-			    (scm_t_extension_init_func) scm_init_srfi_4,
+-			    NULL);
++                            scm_init_srfi_4);
+ }
+ 
+ void
+diff --git a/libguile/srfi-60.c b/libguile/srfi-60.c
+index 93bc688..31ad70a 100644
+--- a/libguile/srfi-60.c
++++ b/libguile/srfi-60.c
+@@ -406,9 +406,9 @@ SCM_REGISTER_PROC (s_srfi60_booleans_to_integer, "booleans->integer", 0, 0, 1, s
+ void
+ scm_register_srfi_60 (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_srfi_60",
+-                            (scm_t_extension_init_func)scm_init_srfi_60, NULL);
++                            scm_init_srfi_60);
+ }
+ 
+ void
+diff --git a/libguile/unicode.c b/libguile/unicode.c
+index a48a222..6048cb2 100644
+--- a/libguile/unicode.c
++++ b/libguile/unicode.c
+@@ -90,8 +90,7 @@ scm_load_unicode (void)
+ void
+ scm_init_unicode (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_unicode",
+-                            (scm_t_extension_init_func)scm_load_unicode,
+-                            NULL);
++                            scm_load_unicode);
+ }
+diff --git a/libguile/vm.c b/libguile/vm.c
+index 6dc05e8..bd59853 100644
+--- a/libguile/vm.c
++++ b/libguile/vm.c
+@@ -1928,13 +1928,12 @@ scm_init_vm_builtin_properties (void)
+ void
+ scm_bootstrap_vm (void)
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_vm",
+-                            (scm_t_extension_init_func)scm_init_vm, NULL);
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++                            scm_init_vm);
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_vm_builtins",
+-                            (scm_t_extension_init_func)scm_init_vm_builtins,
+-                            NULL);
++                            scm_init_vm_builtins);
+ 
+   scm_vm_intrinsics.expand_stack = thread_expand_stack;
+   scm_vm_intrinsics.cons_rest = cons_rest;
+diff --git a/libguile/weak-vector.c b/libguile/weak-vector.c
+index b087891..d0aeae9 100644
+--- a/libguile/weak-vector.c
++++ b/libguile/weak-vector.c
+@@ -264,9 +264,8 @@ scm_init_weak_vector_builtins (void)
+ void
+ scm_init_weak_vectors ()
+ {
+-  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
++  scm_c_register_extension_no_data ("libguile-" SCM_EFFECTIVE_VERSION,
+                             "scm_init_weak_vector_builtins",
+-                            (scm_t_extension_init_func)scm_init_weak_vector_builtins,
+-                            NULL);
++                            scm_init_weak_vector_builtins);
+ }
+ 
