@@ -1,10 +1,15 @@
 {
+  boehmgc,
+  guile_3_0,
   lib,
-  pkgsWasm,
+  libffi,
+  libunistring,
 }:
 
 let
-  base = pkgsWasm.guile_3_0;
+  base = guile_3_0.override {
+    inherit boehmgc libffi;
+  };
 
   isUnusedTargetInput =
     package:
@@ -51,8 +56,9 @@ base.overrideAttrs (old: {
   postInstall = ''
     test -f "$out/lib/libguile-3.0.a"
     sed -i "$out/lib/pkgconfig/guile"-*.pc \
-      -e "s|-lunistring|-L${pkgsWasm.libunistring}/lib -lunistring|g" \
-      -e "s|^Cflags:\(.*\)$|Cflags: -I${pkgsWasm.libunistring.dev}/include \1|g" \
+      -e "s|-lffi|-L${libffi}/lib -lffi|g" \
+      -e "s|-lunistring|-L${libunistring}/lib -lunistring|g" \
+      -e "s|^Cflags:\(.*\)$|Cflags: -I${libunistring.dev}/include \1|g" \
       -e "s|includedir=$out|includedir=$dev|g"
     rm -rf "$out/bin"
     find "$out/lib" -type f \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' \) -delete

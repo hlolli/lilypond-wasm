@@ -1,0 +1,400 @@
+diff --git a/src/types.c b/src/types.c
+--- a/src/types.c
++++ b/src/types.c
+@@ -50,7 +50,11 @@ unsigned int ffi_get_default_abi (void)
+ 
+ size_t ffi_get_closure_size (void)
+ {
++#if FFI_CLOSURES
+   return sizeof(ffi_closure);
++#else
++  return 0;
++#endif
+ }
+ 
+ /* Type definitions */
+diff --git a/src/wasm/ffi.c b/src/wasm/ffi.c
+--- a/src/wasm/ffi.c
++++ b/src/wasm/ffi.c
+@@ -25,6 +25,12 @@
+    DEALINGS IN THE SOFTWARE.
+    ----------------------------------------------------------------------- */
+ 
++#ifdef __wasi__
++
++#include "ffi_wasi.c"
++
++#else
++
+ #include <ffi.h>
+ #include <ffi_common.h>
+ 
+@@ -859,3 +865,5 @@ ffi_status ffi_prep_closure_loc(ffi_closure *closure, ffi_cif *cif,
+   return ffi_prep_closure_loc_js(closure, cif, (void *)fun, user_data,
+                                      codeloc);
+ }
++
++#endif /* !__wasi__ */
+diff --git a/src/wasm/ffi_wasi.c b/src/wasm/ffi_wasi.c
+new file mode 100644
+--- /dev/null
++++ b/src/wasm/ffi_wasi.c
+@@ -0,0 +1,336 @@
++/* Minimal wasm32-wasi backend.
++
++   WebAssembly encodes an indirect call's full signature in the instruction.
++   WASI has no host API which can form a new typed call at run time.  This
++   backend therefore emits a finite set of typed calls: zero through four
++   scalar arguments, with i32, i64, f32, or f64 WebAssembly value types.
++   Structures, long double, variadic calls, and closures are not supported.
++ */
++
++#include <ffi.h>
++#include <ffi_common.h>
++
++#include <stdint.h>
++
++enum wasm_type
++{
++  WASM_I32 = 0,
++  WASM_I64,
++  WASM_F32,
++  WASM_F64,
++  WASM_VOID
++};
++
++typedef union wasm_value
++{
++  uint32_t i32;
++  uint64_t i64;
++  float f32;
++  double f64;
++} wasm_value;
++
++#define WASM_MAX_ARGS 4
++
++#define SIG0() 0u
++#define SIG1(A) (1u | ((unsigned) (A) << 3))
++#define SIG2(A, B) \
++  (2u | ((unsigned) (A) << 3) | ((unsigned) (B) << 5))
++#define SIG3(A, B, C) \
++  (3u | ((unsigned) (A) << 3) | ((unsigned) (B) << 5) \
++      | ((unsigned) (C) << 7))
++#define SIG4(A, B, C, D) \
++  (4u | ((unsigned) (A) << 3) | ((unsigned) (B) << 5) \
++      | ((unsigned) (C) << 7) | ((unsigned) (D) << 9))
++
++#define EACH_TYPE_A(M, ...) \
++  M(__VA_ARGS__, WASM_I32, uint32_t, i32) \
++  M(__VA_ARGS__, WASM_I64, uint64_t, i64) \
++  M(__VA_ARGS__, WASM_F32, float, f32) \
++  M(__VA_ARGS__, WASM_F64, double, f64)
++
++#define EACH_TYPE_B(M, ...) \
++  M(__VA_ARGS__, WASM_I32, uint32_t, i32) \
++  M(__VA_ARGS__, WASM_I64, uint64_t, i64) \
++  M(__VA_ARGS__, WASM_F32, float, f32) \
++  M(__VA_ARGS__, WASM_F64, double, f64)
++
++#define EACH_TYPE_C(M, ...) \
++  M(__VA_ARGS__, WASM_I32, uint32_t, i32) \
++  M(__VA_ARGS__, WASM_I64, uint64_t, i64) \
++  M(__VA_ARGS__, WASM_F32, float, f32) \
++  M(__VA_ARGS__, WASM_F64, double, f64)
++
++#define EACH_TYPE_D(M, ...) \
++  M(__VA_ARGS__, WASM_I32, uint32_t, i32) \
++  M(__VA_ARGS__, WASM_I64, uint64_t, i64) \
++  M(__VA_ARGS__, WASM_F32, float, f32) \
++  M(__VA_ARGS__, WASM_F64, double, f64)
++
++#define STORE_VOID(EXPR) ((void) (EXPR))
++#define STORE_I32(EXPR) (result.i32 = (EXPR))
++#define STORE_I64(EXPR) (result.i64 = (EXPR))
++#define STORE_F32(EXPR) (result.f32 = (EXPR))
++#define STORE_F64(EXPR) (result.f64 = (EXPR))
++
++#define CASE0(RTYPE, STORE) \
++  case SIG0(): \
++    STORE(((RTYPE (*)(void)) fn)()); \
++    break;
++
++#define CASE1(RTYPE, STORE, K0, T0, F0) \
++  case SIG1(K0): \
++    STORE(((RTYPE (*)(T0)) fn)(args[0].F0)); \
++    break;
++
++#define CASE2_LAST(RTYPE, STORE, K0, T0, F0, K1, T1, F1) \
++  case SIG2(K0, K1): \
++    STORE(((RTYPE (*)(T0, T1)) fn)(args[0].F0, args[1].F1)); \
++    break;
++
++#define CASE2_FIRST(RTYPE, STORE, K0, T0, F0) \
++  EACH_TYPE_B(CASE2_LAST, RTYPE, STORE, K0, T0, F0)
++
++#define CASE3_LAST(RTYPE, STORE, K0, T0, F0, K1, T1, F1, K2, T2, F2) \
++  case SIG3(K0, K1, K2): \
++    STORE(((RTYPE (*)(T0, T1, T2)) fn) \
++            (args[0].F0, args[1].F1, args[2].F2)); \
++    break;
++
++#define CASE3_MIDDLE(RTYPE, STORE, K0, T0, F0, K1, T1, F1) \
++  EACH_TYPE_C(CASE3_LAST, RTYPE, STORE, K0, T0, F0, K1, T1, F1)
++
++#define CASE3_FIRST(RTYPE, STORE, K0, T0, F0) \
++  EACH_TYPE_B(CASE3_MIDDLE, RTYPE, STORE, K0, T0, F0)
++
++#define CASE4_LAST(RTYPE, STORE, K0, T0, F0, K1, T1, F1, K2, T2, F2, \
++                   K3, T3, F3) \
++  case SIG4(K0, K1, K2, K3): \
++    STORE(((RTYPE (*)(T0, T1, T2, T3)) fn) \
++            (args[0].F0, args[1].F1, args[2].F2, args[3].F3)); \
++    break;
++
++#define CASE4_THIRD(RTYPE, STORE, K0, T0, F0, K1, T1, F1, K2, T2, F2) \
++  EACH_TYPE_D(CASE4_LAST, RTYPE, STORE, K0, T0, F0, K1, T1, F1, \
++              K2, T2, F2)
++
++#define CASE4_SECOND(RTYPE, STORE, K0, T0, F0, K1, T1, F1) \
++  EACH_TYPE_C(CASE4_THIRD, RTYPE, STORE, K0, T0, F0, K1, T1, F1)
++
++#define CASE4_FIRST(RTYPE, STORE, K0, T0, F0) \
++  EACH_TYPE_B(CASE4_SECOND, RTYPE, STORE, K0, T0, F0)
++
++#define DISPATCH(RTYPE, STORE) \
++  do \
++    { \
++      switch (signature) \
++        { \
++          CASE0(RTYPE, STORE) \
++          EACH_TYPE_A(CASE1, RTYPE, STORE) \
++          EACH_TYPE_A(CASE2_FIRST, RTYPE, STORE) \
++          EACH_TYPE_A(CASE3_FIRST, RTYPE, STORE) \
++          EACH_TYPE_A(CASE4_FIRST, RTYPE, STORE) \
++        default: \
++          return; \
++        } \
++    } \
++  while (0)
++
++static int
++wasm_type_for_ffi_type(const ffi_type *type)
++{
++  switch (type->type)
++    {
++    case FFI_TYPE_VOID:
++      return WASM_VOID;
++    case FFI_TYPE_INT:
++    case FFI_TYPE_UINT8:
++    case FFI_TYPE_SINT8:
++    case FFI_TYPE_UINT16:
++    case FFI_TYPE_SINT16:
++    case FFI_TYPE_UINT32:
++    case FFI_TYPE_SINT32:
++    case FFI_TYPE_POINTER:
++      return WASM_I32;
++    case FFI_TYPE_UINT64:
++    case FFI_TYPE_SINT64:
++      return WASM_I64;
++    case FFI_TYPE_FLOAT:
++      return WASM_F32;
++    case FFI_TYPE_DOUBLE:
++      return WASM_F64;
++    default:
++      return -1;
++    }
++}
++
++static wasm_value
++wasm_load_arg(const ffi_type *type, const void *value)
++{
++  wasm_value result = { 0 };
++
++  switch (type->type)
++    {
++    case FFI_TYPE_INT:
++    case FFI_TYPE_SINT32:
++      result.i32 = (uint32_t) *(const int32_t *) value;
++      break;
++    case FFI_TYPE_UINT32:
++      result.i32 = *(const uint32_t *) value;
++      break;
++    case FFI_TYPE_SINT8:
++      result.i32 = (uint32_t) (int32_t) *(const int8_t *) value;
++      break;
++    case FFI_TYPE_UINT8:
++      result.i32 = (uint32_t) *(const uint8_t *) value;
++      break;
++    case FFI_TYPE_SINT16:
++      result.i32 = (uint32_t) (int32_t) *(const int16_t *) value;
++      break;
++    case FFI_TYPE_UINT16:
++      result.i32 = (uint32_t) *(const uint16_t *) value;
++      break;
++    case FFI_TYPE_POINTER:
++      result.i32 = (uint32_t) (uintptr_t) *(void *const *) value;
++      break;
++    case FFI_TYPE_UINT64:
++      result.i64 = *(const uint64_t *) value;
++      break;
++    case FFI_TYPE_SINT64:
++      result.i64 = (uint64_t) *(const int64_t *) value;
++      break;
++    case FFI_TYPE_FLOAT:
++      result.f32 = *(const float *) value;
++      break;
++    case FFI_TYPE_DOUBLE:
++      result.f64 = *(const double *) value;
++      break;
++    default:
++      result.i64 = 0;
++      break;
++    }
++
++  return result;
++}
++
++static void
++wasm_store_result(const ffi_type *type, void *value, wasm_value result)
++{
++  if (value == NULL)
++    return;
++
++  switch (type->type)
++    {
++    case FFI_TYPE_VOID:
++      break;
++    case FFI_TYPE_INT:
++    case FFI_TYPE_SINT32:
++      *(ffi_sarg *) value = (ffi_sarg) (int32_t) result.i32;
++      break;
++    case FFI_TYPE_UINT32:
++      *(ffi_arg *) value = (ffi_arg) result.i32;
++      break;
++    case FFI_TYPE_SINT8:
++      *(ffi_sarg *) value = (ffi_sarg) (int8_t) result.i32;
++      break;
++    case FFI_TYPE_UINT8:
++      *(ffi_arg *) value = (ffi_arg) (uint8_t) result.i32;
++      break;
++    case FFI_TYPE_SINT16:
++      *(ffi_sarg *) value = (ffi_sarg) (int16_t) result.i32;
++      break;
++    case FFI_TYPE_UINT16:
++      *(ffi_arg *) value = (ffi_arg) (uint16_t) result.i32;
++      break;
++    case FFI_TYPE_POINTER:
++      *(void **) value = (void *) (uintptr_t) result.i32;
++      break;
++    case FFI_TYPE_UINT64:
++      *(uint64_t *) value = result.i64;
++      break;
++    case FFI_TYPE_SINT64:
++      *(int64_t *) value = (int64_t) result.i64;
++      break;
++    case FFI_TYPE_FLOAT:
++      *(float *) value = result.f32;
++      break;
++    case FFI_TYPE_DOUBLE:
++      *(double *) value = result.f64;
++      break;
++    }
++}
++
++ffi_status FFI_HIDDEN
++ffi_prep_cif_machdep(ffi_cif *cif)
++{
++  unsigned i;
++  int return_type;
++
++  if (cif->abi != FFI_WASM32)
++    return FFI_BAD_ABI;
++  if (cif->nargs > WASM_MAX_ARGS)
++    return FFI_BAD_TYPEDEF;
++
++  return_type = wasm_type_for_ffi_type(cif->rtype);
++  if (return_type < 0)
++    return FFI_BAD_TYPEDEF;
++
++  for (i = 0; i < cif->nargs; i++)
++    {
++      int arg_type = wasm_type_for_ffi_type(cif->arg_types[i]);
++      if (arg_type < WASM_I32 || arg_type > WASM_F64)
++        return FFI_BAD_TYPEDEF;
++    }
++
++  cif->flags = (unsigned) return_type;
++  return FFI_OK;
++}
++
++ffi_status FFI_HIDDEN
++ffi_prep_cif_machdep_var(ffi_cif *cif, unsigned nfixedargs,
++                         unsigned ntotalargs)
++{
++  (void) cif;
++  (void) nfixedargs;
++  (void) ntotalargs;
++  return FFI_BAD_ABI;
++}
++
++void
++ffi_call(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
++{
++  wasm_value args[WASM_MAX_ARGS];
++  wasm_value result = { 0 };
++  unsigned signature;
++  unsigned i;
++
++  signature = cif->nargs;
++  for (i = 0; i < cif->nargs; i++)
++    {
++      unsigned type = (unsigned) wasm_type_for_ffi_type(cif->arg_types[i]);
++      args[i] = wasm_load_arg(cif->arg_types[i], avalue[i]);
++      signature |= type << (3 + 2 * i);
++    }
++
++  switch (cif->flags)
++    {
++    case WASM_VOID:
++      DISPATCH(void, STORE_VOID);
++      break;
++    case WASM_I32:
++      DISPATCH(uint32_t, STORE_I32);
++      break;
++    case WASM_I64:
++      DISPATCH(uint64_t, STORE_I64);
++      break;
++    case WASM_F32:
++      DISPATCH(float, STORE_F32);
++      break;
++    case WASM_F64:
++      DISPATCH(double, STORE_F64);
++      break;
++    default:
++      return;
++    }
++
++  wasm_store_result(cif->rtype, rvalue, result);
++}
+diff --git a/src/wasm/ffitarget.h b/src/wasm/ffitarget.h
+--- a/src/wasm/ffitarget.h
++++ b/src/wasm/ffitarget.h
+@@ -43,7 +43,7 @@ typedef void (*ffi_fp)(void);
+ typedef enum ffi_abi {
+   FFI_FIRST_ABI = 0,
+ #if __SIZEOF_POINTER__ == 4
+-  FFI_WASM32, // "raw", no structures, varargs, or closures (not implemented!)
++  FFI_WASM32, // fixed scalar calls, with up to four arguments
+   FFI_WASM32_EMSCRIPTEN, // structures, varargs, and split 64-bit params
+ #elif __SIZEOF_POINTER__ == 8
+   FFI_WASM64,
+@@ -69,7 +69,9 @@ typedef enum ffi_abi {
+ #endif
+ } ffi_abi;
+ 
++#ifdef __EMSCRIPTEN__
+ #define FFI_CLOSURES 1
++#endif
+ // #define FFI_GO_CLOSURES 0
+ #define FFI_TRAMPOLINE_SIZE 4
+ // #define FFI_NATIVE_RAW_API 0

@@ -34,8 +34,11 @@
           pkgsWasm = pkgs.pkgsCross.wasi32;
         in
         rec {
-          guile = pkgs.callPackage ./nix/guile.nix {
-            inherit pkgsWasm;
+          boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix { };
+          libffi = pkgsWasm.callPackage ./nix/libffi.nix { };
+          guile = pkgsWasm.callPackage ./nix/guile.nix {
+            boehmgc = boehm-gc;
+            libffi = libffi;
           };
           default = guile;
         }
