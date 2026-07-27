@@ -1,0 +1,44 @@
+{
+  description = "Static LilyPond dependencies for WebAssembly";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    lilypond = {
+      url = "gitlab:lilypond/lilypond/master";
+      flake = false;
+    };
+  };
+
+  outputs =
+    {
+      nixpkgs,
+      ...
+    }:
+    let
+      systems = [
+        "aarch64-darwin"
+        "aarch64-linux"
+        "x86_64-linux"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in
+    {
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnsupportedSystem = true;
+          };
+          pkgsWasm = pkgs.pkgsCross.wasi32;
+        in
+        rec {
+          guile = pkgs.callPackage ./nix/guile.nix {
+            inherit pkgsWasm;
+          };
+          default = guile;
+        }
+      );
+    };
+}
