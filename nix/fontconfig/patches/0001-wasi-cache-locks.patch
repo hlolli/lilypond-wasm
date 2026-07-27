@@ -1,0 +1,45 @@
+diff --git a/src/fcatomic.c b/src/fcatomic.c
+index b06bf55..a69a07b 100644
+--- a/src/fcatomic.c
++++ b/src/fcatomic.c
+@@ -109,7 +109,7 @@ FcAtomicLock (FcAtomic *atomic)
+     int         ret;
+     struct stat lck_stat;
+ 
+-#ifdef HAVE_LINK
++#if defined(HAVE_LINK) && !defined(__wasi__)
+     int    fd = -1;
+     FILE  *f = 0;
+     FcBool no_link = FcFalse;
+@@ -157,7 +157,7 @@ FcAtomicLock (FcAtomic *atomic)
+ 	if (FcStat (atomic->lck, &lck_stat) >= 0) {
+ 	    time_t now = time (0);
+ 	    if ((long int)(now - lck_stat.st_mtime) > 10 * 60) {
+-#ifdef HAVE_LINK
++#if defined(HAVE_LINK) && !defined(__wasi__)
+ 		if (no_link) {
+ 		    if (rmdir ((char *)atomic->lck) == 0)
+ 			return FcAtomicLock (atomic);
+diff --git a/src/fccache.c b/src/fccache.c
+index cba21a7..b16df03 100644
+--- a/src/fccache.c
++++ b/src/fccache.c
+@@ -1674,6 +1674,9 @@ FcDirCacheLock (const FcChar8 *dir,
+ #if defined(_WIN32)
+ 	    if (_locking (fd, _LK_LOCK, 1) == -1)
+ 		goto bail;
++#elif defined(__wasi__)
++	    errno = ENOSYS;
++	    goto bail;
+ #else
+ 	    struct flock fl;
+ 
+@@ -1703,6 +1706,8 @@ FcDirCacheUnlock (int fd)
+ 	if (fd != -1) {
+ #if defined(_WIN32)
+ 	_locking (fd, _LK_UNLCK, 1);
++#elif defined(__wasi__)
++	/* Plain WASI has no advisory file locks. */
+ #else
+ 	struct flock fl;
+ 

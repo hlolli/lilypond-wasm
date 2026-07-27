@@ -1,0 +1,12 @@
+diff --git a/configure.ac b/configure.ac
+index 448a93d..f2f9220 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -195,7 +195,7 @@ AC_TYPE_PID_T
+ 
+ # Checks for library functions.
+-AX_FUNC_SNPRINTF
++AC_CHECK_FUNCS([snprintf vsnprintf])
+ AC_FUNC_VPRINTF
+ AC_FUNC_MMAP
+ AC_CHECK_FUNCS([link mkstemp _mktemp_s mkdtemp getopt getopt_long getprogname getexecname rand random lrand48 random_r rand_r readlink fstatvfs fstatfs lstat strerror strerror_r strdup vasprintf])

@@ -29,10 +29,17 @@
         freetype = pkgsWasm.callPackage ./nix/freetype {
           inherit zlib;
         };
+        fribidi = pkgsWasm.callPackage ./nix/fribidi {};
+        fontconfig = pkgsWasm.callPackage ./nix/fontconfig {
+          inherit expat freetype;
+        };
         glib = pkgsWasm.callPackage ./nix/glib {
           inherit libffi pcre2;
         };
         gmp = pkgsWasm.callPackage ./nix/gmp.nix {};
+        harfbuzz = pkgsWasm.callPackage ./nix/harfbuzz {
+          inherit freetype;
+        };
         libffi = pkgsWasm.callPackage ./nix/libffi.nix {};
         libpng = pkgsWasm.callPackage ./nix/libpng {
           inherit zlib;
@@ -67,12 +74,31 @@
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
         };
+        fribidi-smoke = scope.pkgs.callPackage ./nix/fribidi/tests {
+          fribidi = scope.packages.fribidi;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+        };
+        fontconfig-smoke = scope.pkgs.callPackage ./nix/fontconfig/tests {
+          expat = scope.packages.expat;
+          font = scope.pkgs.tex-gyre.cursor;
+          fontconfig = scope.packages.fontconfig;
+          freetype = scope.packages.freetype;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+          zlib = scope.packages.zlib;
+        };
         glib-smoke = scope.pkgs.callPackage ./nix/glib/tests {
           binaryen = scope.pkgs.binaryen;
           glib = scope.packages.glib;
           libffi = scope.packages.libffi;
           pcre2 = scope.packages.pcre2;
           stdenvWasi = scope.pkgsWasm.stdenv;
+        };
+        harfbuzz-smoke = scope.pkgs.callPackage ./nix/harfbuzz/tests {
+          font = scope.pkgs.dejavu_fonts.minimal;
+          freetype = scope.packages.freetype;
+          harfbuzz = scope.packages.harfbuzz;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+          zlib = scope.packages.zlib;
         };
         libpng-smoke = scope.pkgs.callPackage ./nix/libpng/tests {
           libpng = scope.packages.libpng;
