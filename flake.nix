@@ -26,6 +26,9 @@
       packages = rec {
         boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix {};
         expat = pkgsWasm.callPackage ./nix/expat {};
+        freetype = pkgsWasm.callPackage ./nix/freetype {
+          inherit zlib;
+        };
         gmp = pkgsWasm.callPackage ./nix/gmp.nix {};
         libffi = pkgsWasm.callPackage ./nix/libffi.nix {};
         libpng = pkgsWasm.callPackage ./nix/libpng {
@@ -53,6 +56,12 @@
         expat-smoke = scope.pkgs.callPackage ./nix/expat/tests {
           expat = scope.packages.expat;
           stdenvWasi = scope.pkgsWasm.stdenv;
+        };
+        freetype-smoke = scope.pkgs.callPackage ./nix/freetype/tests {
+          font = scope.pkgs.tex-gyre.cursor;
+          freetype = scope.packages.freetype;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+          zlib = scope.packages.zlib;
         };
         libpng-smoke = scope.pkgs.callPackage ./nix/libpng/tests {
           libpng = scope.packages.libpng;
