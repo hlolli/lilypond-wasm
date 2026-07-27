@@ -29,12 +29,16 @@
         freetype = pkgsWasm.callPackage ./nix/freetype {
           inherit zlib;
         };
+        glib = pkgsWasm.callPackage ./nix/glib {
+          inherit libffi pcre2;
+        };
         gmp = pkgsWasm.callPackage ./nix/gmp.nix {};
         libffi = pkgsWasm.callPackage ./nix/libffi.nix {};
         libpng = pkgsWasm.callPackage ./nix/libpng {
           inherit zlib;
         };
         libunistring = pkgsWasm.callPackage ./nix/libunistring.nix {};
+        pcre2 = pkgsWasm.callPackage ./nix/pcre2 {};
         zlib = pkgsWasm.callPackage ./nix/zlib {};
         guile = pkgsWasm.callPackage ./nix/guile.nix {
           boehmgc = boehm-gc;
@@ -63,10 +67,21 @@
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
         };
+        glib-smoke = scope.pkgs.callPackage ./nix/glib/tests {
+          binaryen = scope.pkgs.binaryen;
+          glib = scope.packages.glib;
+          libffi = scope.packages.libffi;
+          pcre2 = scope.packages.pcre2;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+        };
         libpng-smoke = scope.pkgs.callPackage ./nix/libpng/tests {
           libpng = scope.packages.libpng;
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
+        };
+        pcre2-smoke = scope.pkgs.callPackage ./nix/pcre2/tests {
+          pcre2 = scope.packages.pcre2;
+          stdenvWasi = scope.pkgsWasm.stdenv;
         };
         zlib-smoke = scope.pkgs.callPackage ./nix/zlib/tests {
           stdenvWasi = scope.pkgsWasm.stdenv;

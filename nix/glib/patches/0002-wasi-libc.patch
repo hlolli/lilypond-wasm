@@ -1,0 +1,195 @@
+diff --git a/meson.build b/meson.build
+index 7be8dd6..9f48968 100644
+--- a/meson.build
++++ b/meson.build
+@@ -290,6 +290,8 @@ glib_conf.set_quoted('PACKAGE_TARNAME', 'glib')
+ glib_conf.set_quoted('PACKAGE_URL', '')
+ glib_conf.set_quoted('PACKAGE_VERSION', meson.project_version())
+-glib_conf.set('ENABLE_NLS', 1)
++if host_system != 'wasi'
++  glib_conf.set('ENABLE_NLS', 1)
++endif
+ 
+ # used by the .rc.in files
+ glibconfig_conf.set('LT_CURRENT_MINUS_AGE', soversion)
+@@ -2139,7 +2141,11 @@ if host_system == 'windows' and not get_option('force_posix_threads')
+   glibconfig_conf.set('g_threads_impl_def', 'WIN32')
+   glib_conf.set('THREADS_WIN32', 1)
+ else
+-  thread_dep = dependency('threads')
++  if host_system == 'wasi'
++    thread_dep = []
++  else
++    thread_dep = dependency('threads')
++  endif
+   threads_implementation = 'posix'
+   pthread_prefix = '''
+       #ifndef _GNU_SOURCE
+@@ -2345,8 +2351,8 @@ if libintl.found() and libintl.type_name() != 'internal'
+ endif
+ 
+ if libintl.found() and libintl.type_name() != 'internal'
+   have_bind_textdomain_codeset = cc.has_function('bind_textdomain_codeset', dependencies: libintl_deps, prefix: libintl_prefix)
+-else
++elif host_system != 'wasi'
+   # using proxy-libintl fallback
+   libintl = dependency('intl', allow_fallback: true)
+   assert(libintl.type_name() == 'internal')
+@@ -2353,5 +2359,7 @@ else
+   libintl_deps = [libintl]
+   have_bind_textdomain_codeset = true  # proxy-libintl supports it
++else
++  have_bind_textdomain_codeset = false
+ endif
+ 
+ glib_conf.set('HAVE_BIND_TEXTDOMAIN_CODESET', have_bind_textdomain_codeset)
+diff --git a/glib/gdate.c b/glib/gdate.c
+index ecb6e69..b799dc0 100644
+--- a/glib/gdate.c
++++ b/glib/gdate.c
+@@ -1407,7 +1407,9 @@ _g_localtime (time_t timet, struct tm *out_tm)
+   gboolean success = TRUE;
+ 
+ #ifdef HAVE_LOCALTIME_R
++#ifndef __wasi__
+   tzset ();
++#endif
+   if (!localtime_r (&timet, out_tm))
+     success = FALSE;
+ #else
+diff --git a/glib/gbacktrace.c b/glib/gbacktrace.c
+index 26c849d..3955c43 100644
+--- a/glib/gbacktrace.c
++++ b/glib/gbacktrace.c
+@@ -44,14 +44,16 @@
+ 
+ #include <time.h>
+ 
+ #ifdef G_OS_UNIX
+-#include "glib-unixprivate.h"
+ #include <errno.h>
+ #include <unistd.h>
++#ifndef __wasi__
++#include "glib-unixprivate.h"
+ #include <sys/wait.h>
+ #ifdef HAVE_SYS_SELECT_H
+ #include <sys/select.h>
+ #endif /* HAVE_SYS_SELECT_H */
++#endif
+ #endif
+ 
+ #include <string.h>
+@@ -78,7 +78,7 @@
+ #define DEBUGGER "gdb"
+ #endif
+ 
+-#if defined(G_OS_UNIX) && (!defined(__APPLE__) || TARGET_OS_OSX)
++#if defined(G_OS_UNIX) && !defined(__wasi__) && (!defined(__APPLE__) || TARGET_OS_OSX)
+ #define HAVE_STACK_TRACE
+ static void stack_trace (const char * const *args);
+ #endif
+diff --git a/glib/gfileutils.c b/glib/gfileutils.c
+index 9c610ef..6cbe29e 100644
+--- a/glib/gfileutils.c
++++ b/glib/gfileutils.c
+@@ -427,12 +427,16 @@ g_file_test (const gchar *filename,
+   
+   if ((test & G_FILE_TEST_IS_EXECUTABLE) && (access (filename, X_OK) == 0))
+     {
++#ifdef __wasi__
++      return TRUE;
++#else
+       if (getuid () != 0)
+ 	return TRUE;
+ 
+       /* For root, on some POSIX systems, access (filename, X_OK)
+        * will succeed even if no executable bits are set on the
+        * file. We fall through to a stat test to avoid that.
+        */
++#endif
+     }
+   else
+     test &= ~G_FILE_TEST_IS_EXECUTABLE;
+diff --git a/glib/ggettext.c b/glib/ggettext.c
+index 2a6a5b0..e040a72 100644
+--- a/glib/ggettext.c
++++ b/glib/ggettext.c
+@@ -42,7 +42,9 @@
+ 
+ #include <string.h>
+ #include <locale.h>
++#ifndef __wasi__
+ #include <libintl.h>
++#endif
+ 
+ #ifdef G_OS_WIN32
+ 
+diff --git a/glib/grand.c b/glib/grand.c
+index 1386a9a..a09027f 100644
+--- a/glib/grand.c
++++ b/glib/grand.c
+@@ -43,6 +43,10 @@
+ #include <sys/types.h>
+ #include "grand.h"
+ 
++#ifdef __wasi__
++#include <wasi/api.h>
++#endif
++
+ #include "genviron.h"
+ #include "gmain.h"
+ #include "gmem.h"
+@@ -171,7 +175,17 @@ GRand*
+ g_rand_new (void)
+ {
+   guint32 seed[4];
+-#ifdef G_OS_UNIX
++#ifdef __wasi__
++  if (__wasi_random_get ((uint8_t *) seed, sizeof (seed))
++      != __WASI_ERRNO_SUCCESS)
++    {
++      gint64 now_us = g_get_real_time ();
++      seed[0] = (guint32) (now_us / G_USEC_PER_SEC);
++      seed[1] = now_us % G_USEC_PER_SEC;
++      seed[2] = getpid ();
++      seed[3] = 0;
++    }
++#elif defined(G_OS_UNIX)
+   static gboolean dev_urandom_exists = TRUE;
+ 
+   if (dev_urandom_exists)
+diff --git a/glib/gi18n-lib.h b/glib/gi18n-lib.h
+index e2e1f67..a99dfc5 100644
+--- a/glib/gi18n-lib.h
++++ b/glib/gi18n-lib.h
+@@ -22,7 +22,9 @@
+ 
+ #include <glib.h>
+ 
++#ifndef __wasi__
+ #include <libintl.h>
++#endif
+ #include <string.h>
+ 
+ #ifndef GETTEXT_PACKAGE
+diff --git a/glib/gi18n.h b/glib/gi18n.h
+index dd65205..c748c9a 100644
+--- a/glib/gi18n.h
++++ b/glib/gi18n.h
+@@ -22,10 +22,16 @@
+ 
+ #include <glib.h>
+ 
++#ifndef __wasi__
+ #include <libintl.h>
++#endif
+ #include <string.h>
+ 
++#ifdef __wasi__
++#define  _(String) (String)
++#else
+ #define  _(String) gettext (String)
++#endif
+ #define Q_(String) g_dpgettext (NULL, String, 0)
+ #define N_(String) (String)
+ #define C_(Context,String) g_dpgettext (NULL, Context "\004" String, strlen (Context) + 1)

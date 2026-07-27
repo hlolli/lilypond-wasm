@@ -1,0 +1,185 @@
+diff --git a/glib/glib-unix.h b/glib/glib-unix.h
+index be23b6d..467e51e 100644
+--- a/glib/glib-unix.h
++++ b/glib/glib-unix.h
+@@ -29,7 +29,9 @@
+  */
+ #include <unistd.h>
+ #include <errno.h>
++#ifndef __wasi__
+ #include <sys/wait.h>
++#endif
+ #include <stdlib.h>
+ #include <fcntl.h>
+ 
+diff --git a/glib/gmain.c b/glib/gmain.c
+index 6c92d07..bcdeb6b 100644
+--- a/glib/gmain.c
++++ b/glib/gmain.c
+@@ -370,11 +370,11 @@ static gboolean g_child_watch_dispatch (GSource     *source,
+ 					gpointer     user_data);
+ static void     g_child_watch_finalize (GSource     *source);
+ 
+-#ifndef G_OS_WIN32
++#if !defined(G_OS_WIN32) && !defined(__wasi__)
+ static void unref_unix_signal_handler_unlocked (int signum);
+ #endif
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+ static void g_unix_signal_handler (int signum);
+ static gboolean g_unix_signal_watch_prepare  (GSource     *source,
+ 					      gint        *timeout);
+@@ -405,7 +405,7 @@ static GRWLock source_destroy_lock;
+ 
+ static GMainContext *glib_worker_context;
+ 
+-#ifndef G_OS_WIN32
++#if !defined(G_OS_WIN32) && !defined(__wasi__)
+ 
+ 
+ /* UNIX signals work by marking one of these variables then waking the
+@@ -5708,7 +5708,9 @@ static gboolean
+ g_child_watch_prepare (GSource *source,
+ 		       gint    *timeout)
+ {
+-#ifdef G_OS_WIN32
++#ifdef __wasi__
++  return FALSE;
++#elif defined(G_OS_WIN32)
+   return FALSE;
+ #else  /* G_OS_WIN32 */
+   {
+@@ -5732,7 +5734,9 @@ g_child_watch_check (GSource *source)
+ 
+   child_watch_source = (GChildWatchSource *) source;
+ 
+-#ifdef G_OS_WIN32
++#ifdef __wasi__
++  child_exited = FALSE;
++#elif defined(G_OS_WIN32)
+   child_exited = !!(child_watch_source->poll.revents & G_IO_IN);
+ #else /* G_OS_WIN32 */
+ #ifdef HAVE_PIDFD
+@@ -5751,7 +5755,7 @@ g_child_watch_check (GSource *source)
+ static void
+ g_child_watch_finalize (GSource *source)
+ {
+-#ifndef G_OS_WIN32
++#if !defined(G_OS_WIN32) && !defined(__wasi__)
+   GChildWatchSource *child_watch_source = (GChildWatchSource *) source;
+ 
+   if (child_watch_source->poll.fd >= 0)
+@@ -5767,7 +5771,7 @@ g_child_watch_finalize (GSource *source)
+ #endif /* G_OS_WIN32 */
+ }
+ 
+-#ifndef G_OS_WIN32
++#if !defined(G_OS_WIN32) && !defined(__wasi__)
+ 
+ static void
+ wake_source (GSource *source)
+@@ -6062,6 +6066,43 @@ g_unix_signal_watch_finalize (GSource    *source)
+ 
+ #endif /* G_OS_WIN32 */
+ 
++#ifdef __wasi__
++static gboolean
++g_wasi_unsupported_source_prepare (GSource *source,
++                                   gint    *timeout)
++{
++  return FALSE;
++}
++
++static gboolean
++g_wasi_unsupported_source_check (GSource *source)
++{
++  return FALSE;
++}
++
++static gboolean
++g_wasi_unsupported_source_dispatch (GSource     *source,
++                                    GSourceFunc  callback,
++                                    gpointer     user_data)
++{
++  return FALSE;
++}
++
++static GSourceFuncs g_wasi_unsupported_source_funcs = {
++  g_wasi_unsupported_source_prepare,
++  g_wasi_unsupported_source_check,
++  g_wasi_unsupported_source_dispatch,
++  NULL, NULL, NULL
++};
++
++GSource *
++_g_main_create_unix_signal_watch (int signum)
++{
++  g_warning ("Unix signal watches are unavailable on WASI");
++  return g_source_new (&g_wasi_unsupported_source_funcs, sizeof (GSource));
++}
++#endif
++
+ static gboolean
+ g_child_watch_dispatch (GSource    *source, 
+ 			GSourceFunc callback,
+@@ -6078,7 +6119,9 @@ g_child_watch_dispatch (GSource    *source,
+    * is invoked; or, if the caller calls g_source_destroy() without the callback
+    * being dispatched, the process is still not reaped. */
+ 
+-#ifdef G_OS_WIN32
++#ifdef __wasi__
++  wait_status = -1;
++#elif defined(G_OS_WIN32)
+   {
+     DWORD child_status;
+ 
+@@ -6200,7 +6243,7 @@ g_child_watch_dispatch (GSource    *source,
+   return FALSE;
+ }
+ 
+-#ifndef G_OS_WIN32
++#if !defined(G_OS_WIN32) && !defined(__wasi__)
+ 
+ static void
+ g_unix_signal_handler (int signum)
+@@ -6294,7 +6337,11 @@ g_child_watch_source_new (GPid pid)
+ 
+   child_watch_source->pid = pid;
+ 
+-#ifdef G_OS_WIN32
++#ifdef __wasi__
++  g_warning ("Child watches are unavailable on WASI");
++  child_watch_source->poll.fd = -1;
++  child_watch_source->child_maybe_exited = FALSE;
++#elif defined(G_OS_WIN32)
+   child_watch_source->poll.fd = (gintptr) pid;
+   child_watch_source->poll.events = G_IO_IN;
+ 
+@@ -6789,7 +6836,7 @@ glib_worker_main (gpointer data)
+     {
+       g_main_context_iteration (glib_worker_context, TRUE);
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+       if (g_atomic_int_get (&any_unix_signal_pending))
+         dispatch_unix_signals ();
+ #endif
+@@ -6806,7 +6853,7 @@ g_get_worker_context (void)
+   if (g_once_init_enter (&initialised))
+     {
+       /* mask all signals in the worker thread */
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+       sigset_t prev_mask;
+       sigset_t all;
+ 
+@@ -6815,7 +6862,7 @@ g_get_worker_context (void)
+ #endif
+       glib_worker_context = g_main_context_new ();
+       g_thread_new ("gmain", glib_worker_main, NULL);
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+       pthread_sigmask (SIG_SETMASK, &prev_mask, NULL);
+ #endif
+       g_once_init_leave (&initialised, TRUE);

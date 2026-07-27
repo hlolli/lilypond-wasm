@@ -1,0 +1,201 @@
+diff --git a/glib/gtestutils.c b/glib/gtestutils.c
+index 05f30cc..6891272 100644
+--- a/glib/gtestutils.c
++++ b/glib/gtestutils.c
+@@ -24,12 +24,15 @@
+ #include "gfileutils.h"
+ 
+ #include <sys/types.h>
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+ #include <sys/wait.h>
+ #include <sys/time.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+ #endif
++#ifdef __wasi__
++#include <unistd.h>
++#endif
+ #ifdef HAVE_FTW_H
+ #include <ftw.h>
+ #endif
+@@ -40,7 +43,7 @@
+ #ifdef HAVE_SYS_PRCTL_H
+ #include <sys/prctl.h>
+ #endif
+-#ifdef HAVE_SYS_RESOURCE_H
++#if defined(HAVE_SYS_RESOURCE_H) && !defined(__wasi__)
+ #include <sys/resource.h>
+ #endif
+ #ifdef G_OS_WIN32
+@@ -1183,7 +1186,7 @@ g_test_log (GTestLogType lbit,
+ void
+ g_test_disable_crash_reporting (void)
+ {
+-#ifdef HAVE_SYS_RESOURCE_H
++#if defined(HAVE_SYS_RESOURCE_H) && !defined(__wasi__)
+   struct rlimit limit = { 0, 0 };
+ 
+   (void) setrlimit (RLIMIT_CORE, &limit);
+@@ -3698,7 +3701,7 @@ test_trap_clear (void)
+   g_clear_pointer (&test_trap_last_stderr, g_free);
+ }
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+ 
+ static int
+ safe_dup2 (int fd1,
+@@ -3752,7 +3755,9 @@ child_timeout (gpointer user_data)
+ {
+   WaitForChildData *data = user_data;
+ 
+-#ifdef G_OS_WIN32
++#ifdef __wasi__
++  (void) data;
++#elif defined(G_OS_WIN32)
+   TerminateProcess (data->pid, G_TEST_STATUS_TIMED_OUT);
+ #else
+   kill (data->pid, SIGALRM);
+@@ -3949,7 +3954,7 @@ gboolean
+ g_test_trap_fork (guint64        usec_timeout,
+                   GTestTrapFlags test_trap_flags)
+ {
+-#if defined(G_OS_UNIX) && (!defined(__APPLE__) || (!TARGET_OS_TV && !TARGET_OS_WATCH))
++#if defined(G_OS_UNIX) && !defined(__wasi__) && (!defined(__APPLE__) || (!TARGET_OS_TV && !TARGET_OS_WATCH))
+   int stdout_pipe[2] = { -1, -1 };
+   int stderr_pipe[2] = { -1, -1 };
+   int errsv;
+@@ -4244,7 +4249,7 @@ g_test_subprocess (void)
+ gboolean
+ g_test_trap_has_passed (void)
+ {
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+   return (WIFEXITED (test_trap_last_status) &&
+       WEXITSTATUS (test_trap_last_status) == 0);
+ #else
+@@ -4264,7 +4269,7 @@ g_test_trap_has_passed (void)
+ gboolean
+ g_test_trap_has_skipped (void)
+ {
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+   return (WIFEXITED (test_trap_last_status) &&
+       WEXITSTATUS (test_trap_last_status) == G_TEST_STATUS_SKIPPED);
+ #else
+@@ -4284,7 +4289,7 @@ g_test_trap_has_skipped (void)
+ gboolean
+ g_test_trap_reached_timeout (void)
+ {
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+   return (WIFSIGNALED (test_trap_last_status) &&
+       WTERMSIG (test_trap_last_status) == SIGALRM);
+ #else
+@@ -4297,7 +4302,7 @@ log_child_output (const gchar *process_id)
+ {
+   gchar *escaped;
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+   if (WIFEXITED (test_trap_last_status)) /* normal exit */
+     {
+       if (WEXITSTATUS (test_trap_last_status) == 0)
+@@ -4370,7 +4375,7 @@ g_test_trap_assertions (const char     *domain,
+   const char *match_error = match_result ? "failed to match" : "contains invalid match";
+   char *process_id;
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+   if (test_trap_last_subprocess != NULL)
+     {
+       process_id = g_strdup_printf ("%s [%d]", test_trap_last_subprocess,
+diff --git a/glib/gthread-posix.c b/glib/gthread-posix.c
+index 6771320..f223170 100644
+--- a/glib/gthread-posix.c
++++ b/glib/gthread-posix.c
+@@ -803,7 +803,11 @@ g_system_thread_wait (GRealThread *thread)
+ void
+ g_system_thread_exit (void)
+ {
++#ifdef __wasi__
++  abort ();
++#else
+   pthread_exit (NULL);
++#endif
+ }
+ 
+ void
+diff --git a/glib/gthread.c b/glib/gthread.c
+index 05d3b46..104f305 100644
+--- a/glib/gthread.c
++++ b/glib/gthread.c
+@@ -1168,7 +1168,7 @@ g_get_num_processors (void)
+ 
+   if (count > 0)
+     return count;
+-#elif defined(_SC_NPROCESSORS_ONLN) && defined(THREADS_POSIX) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
++#elif !defined(__wasi__) && defined(_SC_NPROCESSORS_ONLN) && defined(THREADS_POSIX) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
+   {
+     int ncores = MIN (sysconf (_SC_NPROCESSORS_ONLN), CPU_SETSIZE);
+     cpu_set_t cpu_mask;
+diff --git a/glib/gutils.c b/glib/gutils.c
+index 71ed475..b32b344 100644
+--- a/glib/gutils.c
++++ b/glib/gutils.c
+@@ -42,10 +42,12 @@
+ #include <errno.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+ #include <pwd.h>
+ #include <sys/utsname.h>
+ #include <unistd.h>
++#elif defined(__wasi__)
++#include <unistd.h>
+ #endif
+ #include <sys/types.h>
+ #ifdef HAVE_SYS_PARAM_H
+@@ -659,7 +661,7 @@ g_get_user_database_entry (void)
+     {
+       static UserDatabaseEntry e;
+ 
+-#ifdef G_OS_UNIX
++#if defined(G_OS_UNIX) && !defined(__wasi__)
+       {
+         struct passwd *pw = NULL;
+         gpointer buffer = NULL;
+@@ -1534,7 +1536,7 @@ get_windows_version (gboolean with_windows)
+ }
+ #endif
+ 
+-#if defined (G_OS_UNIX) && !defined (__APPLE__)
++#if defined (G_OS_UNIX) && !defined (__APPLE__) && !defined (__wasi__)
+ static gchar *
+ get_os_info_from_os_release (const gchar *key_name,
+                              const gchar *buffer)
+@@ -1691,6 +1693,14 @@ g_get_os_info (const gchar *key_name)
+     return g_strdup ("macOS");
+   else
+     return NULL;
++#elif defined (__wasi__)
++  if (g_strcmp0 (key_name, G_OS_INFO_KEY_NAME) == 0 ||
++      g_strcmp0 (key_name, G_OS_INFO_KEY_PRETTY_NAME) == 0)
++    return g_strdup ("WASI");
++  else if (g_strcmp0 (key_name, G_OS_INFO_KEY_ID) == 0)
++    return g_strdup ("wasi");
++  else
++    return NULL;
+ #elif defined (G_OS_UNIX)
+   const gchar * const os_release_files[] = { "/etc/os-release", "/usr/lib/os-release" };
+   gsize i;
+@@ -3196,7 +3206,7 @@ g_check_setuid (void)
+    * https://code.google.com/p/android-developer-preview/issues/detail?id=168
+    */
+   return issetugid ();
+-#elif defined(G_OS_UNIX)
++#elif defined(G_OS_UNIX) && !defined(__wasi__)
+   uid_t ruid, euid, suid; /* Real, effective and saved user ID's */
+   gid_t rgid, egid, sgid; /* Real, effective and saved group ID's */

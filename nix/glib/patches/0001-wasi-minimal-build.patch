@@ -1,0 +1,68 @@
+diff --git a/meson.build b/meson.build
+index 7be8dd6..9211465 100644
+--- a/meson.build
++++ b/meson.build
+@@ -295,7 +295,7 @@ glibconfig_conf.set('ENABLE_NLS', 1)
+ # used by the .rc.in files
+ glibconfig_conf.set('LT_CURRENT_MINUS_AGE', soversion)
+ 
+-process_spawn_allowed = true
++process_spawn_allowed = host_system != 'wasi'
+ if subsystem.startswith('tvos') or subsystem.startswith('watchos')
+   process_spawn_allowed = false
+ endif
+@@ -2301,6 +2301,10 @@ libm = cc.find_library('m', required : false)
+ libffi_dep = dependency('libffi', version : '>= 3.0.0', default_options: {'werror': false})
+ 
+-libz_dep = dependency('zlib')
++if host_system == 'wasi'
++  libz_dep = declare_dependency()
++else
++  libz_dep = dependency('zlib')
++endif
+ 
+ libatomic_test_code = '''
+   int main (int argc, char ** argv) {
+@@ -2761,17 +2761,12 @@ windows = import('windows')
+ gnome = import('gnome')
+ 
+ subdir('build-aux')
+-subdir('tools')
++gen_visibility_macros = find_program('tools/gen-visibility-macros.py')
+ subdir('glib')
+ subdir('gobject')
+-subdir('gthread')
+-subdir('gmodule')
+-subdir('gio')
++if host_system == 'wasi'
++  subdir('gio')
++endif
+-subdir('girepository')
+-subdir('fuzzing')
+-if get_option('tests')
+-  subdir('tests')
+-endif
+ 
+ # xgettext is optional (on Windows for instance)
+ if find_program('xgettext', required : get_option('nls')).found()
+@@ -2814,7 +2808,6 @@ if rst2html5.found()
+ endif
+ 
+ gnome = import('gnome')
+-subdir('docs/reference')
+ 
+ summary({
+   'host cpu' : host_machine.cpu_family(),
+diff --git a/glib/meson.build b/glib/meson.build
+index e9258e4..af915c3 100644
+--- a/glib/meson.build
++++ b/glib/meson.build
+@@ -565,7 +565,7 @@ if host_system == 'windows'
+       include_directories : configinc,
+       dependencies : [libglib_dep, app_profile_dep])
+   endif
+-else
++elif host_system != 'wasi'
+   gtester = executable('gtester', 'gtester.c',
+     install : true,
+     install_tag : 'bin-devel',

@@ -1,0 +1,60 @@
+diff --git a/glib/gwakeup.c b/glib/gwakeup.c
+index ec0426f..867397b 100644
+--- a/glib/gwakeup.c
++++ b/glib/gwakeup.c
+@@ -30,6 +30,9 @@
+ #ifdef GLIB_COMPILATION
+ #include "gtypes.h"
+ #include "gpoll.h"
++#ifdef __wasi__
++#include "gslice.h"
++#endif
+ #else
+ #include <glib.h>
+ #endif
+@@ -54,7 +57,44 @@
+  *
+  * Since: 2.30
+  */
+-#ifdef _WIN32
++#ifdef __wasi__
++
++struct _GWakeup
++{
++  guint unused;
++};
++
++GWakeup *
++g_wakeup_new (void)
++{
++  return g_slice_new0 (GWakeup);
++}
++
++void
++g_wakeup_get_pollfd (GWakeup *wakeup,
++                     GPollFD *poll_fd)
++{
++  poll_fd->fd = -1;
++  poll_fd->events = 0;
++}
++
++void
++g_wakeup_acknowledge (GWakeup *wakeup)
++{
++}
++
++void
++g_wakeup_signal (GWakeup *wakeup)
++{
++}
++
++void
++g_wakeup_free (GWakeup *wakeup)
++{
++  g_slice_free (GWakeup, wakeup);
++}
++
++#elif defined (_WIN32)
+ 
+ #include <windows.h>
+ 

@@ -1,0 +1,94 @@
+diff --git a/gio/gio.h b/gio/gio.h
+index 9b2dd20..689f237 100644
+--- a/gio/gio.h
++++ b/gio/gio.h
+@@ -26,6 +26,13 @@
+ 
+ #include <gio/giotypes.h>
+ 
++#ifdef __wasi__
++
++/* Pango uses GListModel for its font-map and font-family types. */
++#include <gio/glistmodel.h>
++
++#else
++
+ #include <gio/gaction.h>
+ #include <gio/gactiongroup.h>
+ #include <gio/gactiongroupexporter.h>
+@@ -159,6 +166,8 @@
+ 
+ #include <gio/gio-autocleanups.h>
+ 
++#endif
++
+ #undef __GIO_GIO_H_INSIDE__
+ 
+ #endif /* __G_IO_H__ */
+diff --git a/gio/meson.build b/gio/meson.build
+index 672d834..765ae5b 100644
+--- a/gio/meson.build
++++ b/gio/meson.build
+@@ -1,3 +1,62 @@
++if host_system == 'wasi'
++  # Pango needs GListModel for its public font-map and font-family types. Keep
++  # that API, but leave out GIO's files, sockets, D-Bus, modules, and tools.
++  gio_includedir = glib_includedir / 'gio'
++  gio_headers = files(
++    'gio.h',
++    'gioenums.h',
++    'giotypes.h',
++    'glistmodel.h',
++  )
++
++  gio_visibility_h = custom_target(
++    output: 'gio-visibility.h',
++    command: [
++      gen_visibility_macros,
++      meson.project_version(),
++      'visibility-macros',
++      'GIO',
++      '@OUTPUT@',
++    ],
++    install: true,
++    install_dir: gio_includedir,
++  )
++
++  install_headers(gio_headers, install_dir: gio_includedir)
++
++  libgio = library(
++    'gio-2.0',
++    'glistmodel.c',
++    'gmarshal-internal.c',
++    gio_visibility_h,
++    version: library_version,
++    soversion: soversion,
++    install: true,
++    include_directories: [configinc, gioinc],
++    dependencies: [libglib_dep, libgobject_dep],
++    c_args: ['-DGIO_COMPILATION'],
++    gnu_symbol_visibility: 'hidden',
++    link_args: glib_link_flags,
++  )
++  libgio_dep = declare_dependency(
++    link_with: libgio,
++    dependencies: [libgobject_dep],
++    include_directories: [gioinc],
++  )
++
++  pkg.generate(
++    libgio,
++    requires: ['glib-2.0', 'gobject-2.0'],
++    version: glib_version,
++    install_dir: glib_pkgconfigreldir,
++    filebase: 'gio-2.0',
++    name: 'GIO WASI list model subset',
++    description: 'GListModel support for static WASI builds',
++  )
++  meson.override_dependency('gio-2.0', libgio_dep)
++  subdir_done()
++endif
++
+ gio_c_args = [
+   '-DG_LOG_DOMAIN="GLib-GIO"',
+   '-DGIO_LAUNCH_DESKTOP="@0@"'.format(glib_prefix / multiarch_libexecdir / 'gio-launch-desktop'),
