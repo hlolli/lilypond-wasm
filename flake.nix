@@ -25,8 +25,12 @@
       pkgsWasm = pkgs.pkgsCross.wasi32;
       packages = rec {
         boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix {};
+        expat = pkgsWasm.callPackage ./nix/expat {};
         gmp = pkgsWasm.callPackage ./nix/gmp.nix {};
         libffi = pkgsWasm.callPackage ./nix/libffi.nix {};
+        libpng = pkgsWasm.callPackage ./nix/libpng {
+          inherit zlib;
+        };
         libunistring = pkgsWasm.callPackage ./nix/libunistring.nix {};
         zlib = pkgsWasm.callPackage ./nix/zlib {};
         guile = pkgsWasm.callPackage ./nix/guile.nix {
@@ -46,6 +50,15 @@
       system: let
         scope = scopeForSystem system;
       in {
+        expat-smoke = scope.pkgs.callPackage ./nix/expat/tests {
+          expat = scope.packages.expat;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+        };
+        libpng-smoke = scope.pkgs.callPackage ./nix/libpng/tests {
+          libpng = scope.packages.libpng;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+          zlib = scope.packages.zlib;
+        };
         zlib-smoke = scope.pkgs.callPackage ./nix/zlib/tests {
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
