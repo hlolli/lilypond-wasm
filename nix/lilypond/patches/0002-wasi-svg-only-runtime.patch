@@ -1,0 +1,83 @@
+diff --git a/lily/general-scheme.cc b/lily/general-scheme.cc
+index 0bb5357b9c..c42fd1b026 100644
+--- a/lily/general-scheme.cc
++++ b/lily/general-scheme.cc
+@@ -302,5 +302,11 @@ first parameter is an integer, or to file @var{file-name}, opened with
+            )")
+ {
++#if defined (__wasi__)
++  (void) fd_or_file_name;
++  (void) mode;
++  warning (_ ("stderr redirection is not available on WASI"));
++  return SCM_UNSPECIFIED;
++#else
+   fflush (stderr);
+ 
+   if (scm_is_integer (fd_or_file_name))
+@@ -336,6 +342,7 @@ first parameter is an integer, or to file @var{file-name}, opened with
+       exit (1);
+     }
+   return SCM_UNSPECIFIED;
++#endif
+ }
+ 
+ LY_DEFINE (ly_hash_table_keys, "ly:hash-table-keys", 1, 0, 0, (SCM tab),
+@@ -489,5 +489,13 @@ int
+ ly_run_command (char *argv[], char **standard_output, char **standard_error)
+ {
++#if defined (__wasi__)
++  if (standard_output)
++    *standard_output = nullptr;
++  if (standard_error)
++    *standard_error = nullptr;
++  warning (_f ("cannot run child process on WASI: %s", argv[0]));
++  return -1;
++#else
+   GError *error = 0;
+   int exit_status = 0;
+   int flags = G_SPAWN_SEARCH_PATH;
+@@ -506,6 +515,7 @@ ly_run_command (char *argv[], char **standard_output, char **standard_error)
+     }
+ 
+   return exit_status;
++#endif
+ }
+ 
+ LY_DEFINE (ly_spawn, "ly:spawn", 1, 0, 1, (SCM command, SCM rest),
+diff --git a/lily/main.cc b/lily/main.cc
+index 70d296c9d6..2029bf5f75 100644
+--- a/lily/main.cc
++++ b/lily/main.cc
+@@ -111,8 +111,8 @@ static Long_option_init options_static[] = {
+ static Long_option_init options_static[] = {
+   {_i ("FORMATs"), "formats", 'f',
+    _i ("dump FORMAT,...  Also as separate options:")},
+-  {0, "pdf", 0, _i ("generate PDF files (default)")},
+-  {0, "svg", 0, _i ("generate SVG files ")},
++  {0, "pdf", 0, _i ("generate PDF files")},
++  {0, "svg", 0, _i ("generate SVG files (default)")},
+   {0, "png", 0, _i ("generate PNG files ")},
+   {0, "ps", 0, _i ("generate PostScript files")},
+   {0, "eps", 'E', _i ("generate Encapsulated PostScript files")},
+@@ -646,7 +646,7 @@ parse_argv (int argc, char **argv)
+     }
+ 
+   if (output_formats_global.empty ())
+-    add_output_format ("pdf");
++    add_output_format ("svg");
+ 
+   if (output_formats_global.size () == 1 && output_formats_global[0] == "svg")
+     {
+diff --git a/scm/lily.scm b/scm/lily.scm
+index bd8f2d0ee8..ea179f6208 100644
+--- a/scm/lily.scm
++++ b/scm/lily.scm
+@@ -260,7 +260,7 @@ result to prevent jaggies in PNG images."
+     (aux-files #f
+                "Create .tex, .texi, .count files for use with
+ lilypond-book.")
+-    (backend ps
++    (backend svg
+              "Select backend.  Possible values are 'ps',
+ 'cairo', and 'svg'."
+              #:type (ps cairo svg))

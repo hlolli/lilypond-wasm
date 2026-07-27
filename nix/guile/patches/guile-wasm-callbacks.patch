@@ -1,3 +1,4 @@
+# WebAssembly-safe callback adapters for Guile's static extensions.
 diff --git a/libguile/atomic.c b/libguile/atomic.c
 index adb2a0c..5776a83 100644
 --- a/libguile/atomic.c

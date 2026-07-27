@@ -1,0 +1,114 @@
+diff --git a/configure.ac b/configure.ac
+index 22603a9685..921c3f27a8 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -44,6 +44,13 @@ AC_ARG_ENABLE(documentation,
+     [DOCUMENTATION=$enableval])
+ AC_SUBST(DOCUMENTATION)
+ 
++FONTS=yes
++AC_ARG_ENABLE(fonts,
++    [AS_HELP_STRING([--enable-fonts],
++                    [build LilyPond fonts.  Default: on])],
++    [FONTS=$enableval])
++AC_SUBST(FONTS)
++
+ AC_ARG_WITH(extractpdfmark,
+     [AS_HELP_STRING([--with-extractpdfmark],
+                     [use extractpdfmark for PDF documentation.]
+@@ -82,8 +90,17 @@ STEPMAKE_LOCALE
+ STEPMAKE_GETTEXT
+ AC_PATH_PROG([MSGFMT],[msgfmt])
+ AS_VAR_IF([MSGFMT],[],[AC_MSG_ERROR([cannot find msgfmt])])
+-STEPMAKE_TEXMF(REQUIRED)
+-STEPMAKE_TEXMF_DIRS(REQUIRED)
++if test "$FONTS" = "yes"; then
++    STEPMAKE_TEXMF(REQUIRED)
++    STEPMAKE_TEXMF_DIRS(REQUIRED)
++else
++    METAFONT=:
++    METAPOST=:
++    KPSEWHICH=:
++    AC_SUBST(METAFONT)
++    AC_SUBST(METAPOST)
++    AC_SUBST(KPSEWHICH)
++fi
+ 
+ STEPMAKE_GUILE_DEVEL(REQUIRED)
+ 
+@@ -131,9 +148,15 @@ LIBS="$save_LIBS"
+ AC_SUBST(CXXABI_LIBS)
+ 
+-STEPMAKE_FONTFORGE(REQUIRED)
+-
+-AC_PATH_PROG([T1ASM],[t1asm])
+-AS_VAR_IF([T1ASM],[],[AC_MSG_ERROR([cannot find t1asm])])
++if test "$FONTS" = "yes"; then
++    STEPMAKE_FONTFORGE(REQUIRED)
++    AC_PATH_PROG([T1ASM],[t1asm])
++    AS_VAR_IF([T1ASM],[],[AC_MSG_ERROR([cannot find t1asm])])
++else
++    FONTFORGE=:
++    T1ASM=:
++    AC_SUBST(FONTFORGE)
++    AC_SUBST(T1ASM)
++fi
+ 
+ AC_CHECK_HEADERS([grp.h pwd.h sys/stat.h])
+ AC_CHECK_FUNCS([chroot gettext])
+@@ -159,7 +184,18 @@ PKG_CHECK_MODULES(PANGO_FT2, pangoft2 >= 1.44.5)
+ AC_SUBST(PANGO_FT2_CFLAGS)
+ AC_SUBST(PANGO_FT2_LIBS)
+ 
+-PKG_CHECK_MODULES(CAIRO, cairo >= 1.16)
++CAIRO=yes
++AC_ARG_ENABLE(cairo,
++    [AS_HELP_STRING([--enable-cairo],
++                    [build the Cairo backend.  Default: on])],
++    [CAIRO=$enableval])
++
++if test "$CAIRO" = "yes"; then
++    PKG_CHECK_MODULES(CAIRO, cairo >= 1.16)
++else
++    CAIRO_CFLAGS=
++    CAIRO_LIBS=
++fi
+ AC_SUBST(CAIRO_CFLAGS)
+ AC_SUBST(CAIRO_LIBS)
+ 
+diff --git a/lily/GNUmakefile b/lily/GNUmakefile
+index 9fa5984f53..44c5ec348c 100644
+--- a/lily/GNUmakefile
++++ b/lily/GNUmakefile
+@@ -13,6 +13,10 @@ SUBDIRS = include
+ 
+ include $(depth)/make/lilypond.make
+ 
++ifeq ($(strip $(CAIRO_CFLAGS)),)
++O_FILES := $(filter-out $(outdir)/cairo.o,$(O_FILES))
++endif
++
+ FLOWER_LIB = $(depth)/flower/$(outdir)/library.a
+ LDLIBS = $(FLOWER_LIB) $(CONFIG_LIBS)
+ 
+@@ -34,6 +38,6 @@ $(O_FILES): $(outdir)/config.hh
+ 
+ $(FLOWER_LIB):
+-	$(MAKE) -C $(dirname $@)
++	$(MAKE) -C $(depth)/flower
+ 
+ $(EXECUTABLE): $(O_FILES) $(outdir)/version.hh $(FLOWER_LIB)
+ 	$(call ly_progress,Making,$@,)
+diff --git a/flower/GNUmakefile b/flower/GNUmakefile
+index 5fb18aeaa1..f8e1421f3b 100644
+--- a/flower/GNUmakefile
++++ b/flower/GNUmakefile
+@@ -28,7 +28,7 @@ check: test
+ 	$(call ly_progress,Running,$(TEST_EXECUTABLE),)
+ 	$(TEST_EXECUTABLE) $(if $(VERBOSE),,--quiet)
+
+-AR=ar
++AR ?= ar
+ LIBRARY = $(outdir)/library.a
+ 
+ $(O_FILES): $(outdir)/config.hh

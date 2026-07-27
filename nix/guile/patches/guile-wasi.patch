@@ -1,3 +1,4 @@
+# WASI libc and runtime compatibility changes for Guile.
 diff --git a/lib/fcntl.in.h b/lib/fcntl.in.h
 index 672cf85..0111acb 100644
 --- a/lib/fcntl.in.h

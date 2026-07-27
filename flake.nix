@@ -10,7 +10,11 @@
     };
   };
 
-  outputs = {nixpkgs, ...}: let
+  outputs = {
+    lilypond,
+    nixpkgs,
+    ...
+  }: let
     systems = [
       "aarch64-darwin"
       "aarch64-linux"
@@ -23,6 +27,7 @@
         config.allowUnsupportedSystem = true;
       };
       pkgsWasm = pkgs.pkgsCross.wasi32;
+      lilypondSource = lilypond;
       packages = rec {
         boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix {};
         expat = pkgsWasm.callPackage ./nix/expat {};
@@ -45,12 +50,32 @@
           inherit zlib;
         };
         libunistring = pkgsWasm.callPackage ./nix/libunistring.nix {};
+        lilypond = pkgsWasm.callPackage ./nix/lilypond {
+          boehmgc = boehm-gc;
+          inherit
+            expat
+            fontconfig
+            freetype
+            fribidi
+            glib
+            gmp
+            guile
+            harfbuzz
+            libffi
+            libpng
+            libunistring
+            pango
+            pcre2
+            zlib
+            ;
+          src = lilypondSource;
+        };
         pango = pkgsWasm.callPackage ./nix/pango {
           inherit fontconfig freetype fribidi glib harfbuzz;
         };
         pcre2 = pkgsWasm.callPackage ./nix/pcre2 {};
         zlib = pkgsWasm.callPackage ./nix/zlib {};
-        guile = pkgsWasm.callPackage ./nix/guile.nix {
+        guile = pkgsWasm.callPackage ./nix/guile {
           boehmgc = boehm-gc;
           inherit gmp libunistring;
           libffi = libffi;
@@ -96,6 +121,10 @@
           pcre2 = scope.packages.pcre2;
           stdenvWasi = scope.pkgsWasm.stdenv;
         };
+        guile-smoke = scope.pkgs.callPackage ./nix/guile/tests {
+          guile = scope.packages.guile;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+        };
         harfbuzz-smoke = scope.pkgs.callPackage ./nix/harfbuzz/tests {
           font = scope.pkgs.dejavu_fonts.minimal;
           freetype = scope.packages.freetype;
@@ -107,6 +136,9 @@
           libpng = scope.packages.libpng;
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
+        };
+        lilypond-link-smoke = scope.pkgs.callPackage ./nix/lilypond/tests {
+          lilypond = scope.packages.lilypond;
         };
         pango-smoke = scope.pkgs.callPackage ./nix/pango/tests {
           binaryen = scope.pkgs.binaryen;
