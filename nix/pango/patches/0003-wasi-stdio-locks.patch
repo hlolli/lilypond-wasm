@@ -1,0 +1,24 @@
+diff --git a/pango/pango-utils.c b/pango/pango-utils.c
+index 86cbb8f..0ee056b 100644
+--- a/pango/pango-utils.c
++++ b/pango/pango-utils.c
+@@ -263,7 +263,9 @@ pango_read_line (FILE *stream, GString *str)
+   int n_read = 0;
+   int lines = 1;
+ 
++#ifndef __wasi__
+   flockfile (stream);
++#endif
+ 
+   g_string_truncate (str, 0);
+ 
+@@ -343,7 +345,9 @@ pango_read_line (FILE *stream, GString *str)
+ 
+  done:
+ 
++#ifndef __wasi__
+   funlockfile (stream);
++#endif
+ 
+   return (n_read > 0) ? lines : 0;
+ }

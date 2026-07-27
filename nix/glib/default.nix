@@ -111,6 +111,7 @@ glib.overrideAttrs (old: {
     test -f "$dev/include/glib-2.0/glib.h"
     test -f "$dev/include/glib-2.0/glib-object.h"
     test -f "$dev/include/glib-2.0/gio/gio.h"
+    test -f "$dev/include/glib-2.0/gio/gioerror.h"
     test -f "$dev/include/glib-2.0/gio/glistmodel.h"
   '';
 

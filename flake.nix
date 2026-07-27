@@ -45,6 +45,9 @@
           inherit zlib;
         };
         libunistring = pkgsWasm.callPackage ./nix/libunistring.nix {};
+        pango = pkgsWasm.callPackage ./nix/pango {
+          inherit fontconfig freetype fribidi glib harfbuzz;
+        };
         pcre2 = pkgsWasm.callPackage ./nix/pcre2 {};
         zlib = pkgsWasm.callPackage ./nix/zlib {};
         guile = pkgsWasm.callPackage ./nix/guile.nix {
@@ -102,6 +105,21 @@
         };
         libpng-smoke = scope.pkgs.callPackage ./nix/libpng/tests {
           libpng = scope.packages.libpng;
+          stdenvWasi = scope.pkgsWasm.stdenv;
+          zlib = scope.packages.zlib;
+        };
+        pango-smoke = scope.pkgs.callPackage ./nix/pango/tests {
+          binaryen = scope.pkgs.binaryen;
+          expat = scope.packages.expat;
+          font = scope.pkgs.dejavu_fonts.minimal;
+          fontconfig = scope.packages.fontconfig;
+          freetype = scope.packages.freetype;
+          fribidi = scope.packages.fribidi;
+          glib = scope.packages.glib;
+          harfbuzz = scope.packages.harfbuzz;
+          libffi = scope.packages.libffi;
+          pango = scope.packages.pango;
+          pcre2 = scope.packages.pcre2;
           stdenvWasi = scope.pkgsWasm.stdenv;
           zlib = scope.packages.zlib;
         };

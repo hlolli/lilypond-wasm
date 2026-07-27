@@ -284,6 +284,21 @@ check_glistmodel (void)
 }
 
 static int
+check_gio_error (void)
+{
+  GError *error;
+
+  error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+                               "not supported");
+  if (error == NULL || error->domain != G_IO_ERROR
+      || error->code != G_IO_ERROR_NOT_SUPPORTED)
+    return fail ("the GIO error domain was wrong");
+
+  g_error_free (error);
+  return 0;
+}
+
+static int
 check_spawn_stub (void)
 {
   gchar *argv[] = { (gchar *) "false", NULL };
@@ -357,7 +372,8 @@ int
 main (void)
 {
   if (check_regex () != 0 || check_base64 () != 0 || check_gobject () != 0
-      || check_glistmodel () != 0 || check_spawn_stub () != 0
+      || check_glistmodel () != 0 || check_gio_error () != 0
+      || check_spawn_stub () != 0
       || check_wasi_platform () != 0)
     return 1;
 

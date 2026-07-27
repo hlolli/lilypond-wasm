@@ -1,0 +1,19 @@
+diff --git a/meson.build b/meson.build
+index 691cb23..9fc5249 100644
+--- a/meson.build
++++ b/meson.build
+@@ -565,8 +565,12 @@ root_inc = include_directories('.')
+ pango_inc = include_directories('pango')
+ 
+ subdir('pango')
+-subdir('utils')
+-subdir('tools')
++
++if host_system != 'wasi'
++  subdir('utils')
++  subdir('tools')
++endif
++
+ subdir('docs')
+ if get_option('build-testsuite')
+   subdir('tests')
