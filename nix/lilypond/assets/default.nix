@@ -15,11 +15,12 @@
   metapostBin = texlive.pkgs.metapost.out;
   metapostData = texlive.pkgs.metapost.tex;
 
+  urwBase35Version = "20200910";
   urwBase35 = fetchFromGitHub {
     name = "lilypond-urw-base35-fonts";
     owner = "ArtifexSoftware";
     repo = "urw-base35-fonts";
-    tag = "20200910";
+    tag = urwBase35Version;
     hash = "sha256-YQl5IDtodcbTV3D6vtJi7CwxVtHHl58fG6qCAoSaP4U=";
   };
 in
@@ -131,6 +132,17 @@ in
 
     doCheck = false;
     doInstallCheck = false;
+
+    passthru.sourceInputs = {
+      dejavu = {
+        source = dejavu_fonts.full-ttf.src;
+        version = dejavu_fonts.full-ttf.version;
+      };
+      urw-base35 = {
+        source = urwBase35;
+        version = urwBase35Version;
+      };
+    };
 
     meta = {
       description = "Pinned LilyPond runtime data and fonts";

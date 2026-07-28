@@ -1,0 +1,54 @@
+{
+  "name": "@hlolli/lilypond-wasm",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Low-level SVG-only LilyPond runtime for WebAssembly and WASI",
+  "type": "module",
+  "sideEffects": false,
+  "license": "SEE LICENSE IN LICENSE",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    },
+    "./lilypond.wasm": "./dist/lilypond.wasm",
+    "./runtime-manifest.json": "./runtime-manifest.json",
+    "./runtime/*": "./runtime/*",
+    "./licenses/*": "./licenses/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "runtime/",
+    "licenses/",
+    "COPYING",
+    "LICENSE",
+    "README.md",
+    "SOURCE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "index.d.ts",
+    "index.js",
+    "runtime-manifest.json"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hlolli/lilypond-wasm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hlolli/lilypond-wasm/issues"
+  },
+  "homepage": "https://github.com/hlolli/lilypond-wasm#readme",
+  "keywords": [
+    "lilypond",
+    "music-notation",
+    "svg",
+    "wasi",
+    "wasm",
+    "webassembly"
+  ]
+}

@@ -13,6 +13,7 @@
   outputs = {
     lilypond,
     nixpkgs,
+    self,
     ...
   }: let
     systems = [
@@ -21,6 +22,54 @@
       "x86_64-linux"
     ];
     forAllSystems = nixpkgs.lib.genAttrs systems;
+    projectSource = nixpkgs.lib.cleanSourceWith {
+      name = "lilypond-wasm-source";
+      src = self.outPath;
+      filter = path: _type: let
+        sourceRoot = builtins.toString self.outPath;
+        relativePath =
+          nixpkgs.lib.removePrefix
+          "${sourceRoot}/"
+          (builtins.toString path);
+        rootEntry = !(nixpkgs.lib.hasInfix "/" relativePath);
+      in
+        builtins.baseNameOf path
+        != ".DS_Store"
+        && !(
+          rootEntry
+          && (
+            builtins.elem relativePath [
+              ".direnv"
+              ".git"
+              ".local-packages"
+              "lilypond"
+            ]
+            || nixpkgs.lib.hasPrefix "result" relativePath
+          )
+        );
+    };
+    canonicalLilypondSource = builtins.path {
+      name = "lilypond-source";
+      path = lilypond.outPath;
+    };
+    canonicalNixpkgsSource = builtins.path {
+      name = "nixpkgs-source";
+      path = nixpkgs.outPath;
+    };
+    sourcePins = {
+      lilypond = {
+        revision = lilypond.rev or null;
+        narHash = lilypond.narHash or null;
+      };
+      lilypond-wasm = {
+        revision = self.rev or self.dirtyRev or null;
+        narHash = self.narHash or null;
+      };
+      nixpkgs = {
+        revision = nixpkgs.rev or null;
+        narHash = nixpkgs.narHash or null;
+      };
+    };
     scopeForSystem = system: let
       pkgs = import nixpkgs {
         inherit system;
@@ -72,6 +121,107 @@
             zlib
             ;
           src = lilypondSource;
+        };
+        lilypond-npm = pkgs.callPackage ./nix/lilypond/npm.nix {
+          inherit guile lilypond;
+          lilypondAssets = lilypond-assets;
+          lilypondSourceBundle = lilypond-source-bundle;
+        };
+        lilypond-source-bundle = pkgs.callPackage ./nix/lilypond/source-bundle.nix {
+          compilerRt = pkgsWasm.llvmPackages.compiler-rt;
+          libcxx = pkgsWasm.llvmPackages.libcxx;
+          lilypondPackage = lilypond;
+          lilypondAssets = lilypond-assets;
+          inherit
+            projectSource
+            sourcePins
+            ;
+          lilypondSource = canonicalLilypondSource;
+          linkedSources = [
+            {
+              kind = "directory";
+              name = "boehm-gc";
+              package = boehm-gc;
+            }
+            {
+              kind = "file";
+              name = "expat";
+              package = expat;
+            }
+            {
+              kind = "file";
+              name = "fontconfig";
+              package = fontconfig;
+            }
+            {
+              kind = "file";
+              name = "freetype";
+              package = freetype;
+            }
+            {
+              kind = "file";
+              name = "fribidi";
+              package = fribidi;
+            }
+            {
+              kind = "file";
+              name = "glib";
+              package = glib;
+            }
+            {
+              kind = "file";
+              name = "gmp";
+              package = gmp;
+            }
+            {
+              kind = "file";
+              name = "guile";
+              package = guile;
+            }
+            {
+              kind = "file";
+              name = "harfbuzz";
+              package = harfbuzz;
+            }
+            {
+              kind = "file";
+              name = "libffi";
+              package = libffi;
+            }
+            {
+              kind = "file";
+              name = "libpng";
+              package = libpng;
+            }
+            {
+              kind = "file";
+              name = "libunistring";
+              package = libunistring;
+            }
+            {
+              kind = "file";
+              name = "pango";
+              package = pango;
+            }
+            {
+              kind = "file";
+              name = "pcre2";
+              package = pcre2;
+            }
+            {
+              kind = "file";
+              name = "zlib";
+              package = zlib;
+            }
+          ];
+          nixpkgsSource = canonicalNixpkgsSource;
+          version =
+            (builtins.fromJSON (builtins.readFile ./npm/package.json)).version;
+          wasiLibc = pkgsWasm.wasilibc;
+        };
+        lilypond-npm-tarball = pkgs.callPackage ./nix/lilypond/npm-tarball.nix {
+          lilypondNpm = lilypond-npm;
+          lilypondSourceBundle = lilypond-source-bundle;
         };
         pango = pkgsWasm.callPackage ./nix/pango {
           inherit fontconfig freetype fribidi glib harfbuzz;
@@ -148,6 +298,72 @@
           lilypond = scope.packages.lilypond;
           lilypondAssets = scope.packages.lilypond-assets;
         };
+        lilypond-npm-smoke = scope.pkgs.callPackage ./nix/lilypond/tests/npm.nix {
+          lilypondAssets = scope.packages.lilypond-assets;
+          lilypondNpmTarball = scope.packages.lilypond-npm-tarball;
+        };
+        lilypond-source-bundle-manifest = let
+          bundle = scope.packages.lilypond-source-bundle;
+          expectedNames = scope.pkgs.writeText "lilypond-source-names" (
+            nixpkgs.lib.concatStringsSep "\n" bundle.requiredSourceNames
+            + "\n"
+          );
+        in
+          scope.pkgs.runCommand "lilypond-source-bundle-manifest-check"
+          {
+            nativeBuildInputs = [
+              scope.pkgs.diffutils
+              scope.pkgs.jq
+            ];
+            manifest = bundle.manifestFile;
+            sourceInputs = bundle.sourceInputs;
+          }
+          ''
+            for source in $sourceInputs; do
+              test -e "$source"
+            done
+
+            jq -e \
+              --arg archive ${nixpkgs.lib.escapeShellArg bundle.archiveName} \
+              --arg version ${nixpkgs.lib.escapeShellArg bundle.version} \
+              --argjson sourceCount ${toString (builtins.length bundle.requiredSourceNames)} \
+              '
+                .schemaVersion == 1
+                and .package.name == "@hlolli/lilypond-wasm"
+                and .package.version == $version
+                and .archive.fileName == $archive
+                and (.sources | length) == $sourceCount
+                and (
+                  [.sources[].path] | length
+                ) == (
+                  [.sources[].path] | unique | length
+                )
+                and all(
+                  .sources[];
+                  (.version | type) == "string"
+                  and (.version | length) > 0
+                  and (.path | startswith("sources/"))
+                  and (.originalStorePath | startswith("/nix/store/"))
+                  and (.restore.command | startswith("nix store add "))
+                  and .restore.expectedStorePath == .originalStorePath
+                )
+                and (
+                  [
+                    .sources[]
+                    | select(.name == "libcxx-libcxxabi")
+                    | .components[]
+                  ]
+                  == ["libc++", "libc++abi"]
+                )
+              ' \
+              "$manifest"
+
+            jq -r ".sources[].name" "$manifest" > actual-names
+            diff -u ${expectedNames} actual-names
+
+            mkdir -p "$out"
+            cp "$manifest" "$out/manifest.json"
+          '';
         pango-smoke = scope.pkgs.callPackage ./nix/pango/tests {
           binaryen = scope.pkgs.binaryen;
           expat = scope.packages.expat;

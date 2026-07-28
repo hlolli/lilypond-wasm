@@ -19,13 +19,42 @@
   stdenv,
   zlib,
 }: let
+  lilypondVersion = "2.27.2";
   requiredFinalWasmOptFlags =
     lib.unique
     (guile.requiredFinalWasmOptFlags ++ pango.requiredFinalWasmOptFlags);
+  wasmMetadataSection = "lilypond-wasm.metadata";
+  wasmMetadata = {
+    schemaVersion = 1;
+    name = "lilypond-wasm";
+    repository = "https://github.com/hlolli/lilypond-wasm";
+    projectAuthor = "Hlöðver Sigurðsson";
+    license = "GPL-3.0-or-later";
+    notices = "https://github.com/hlolli/lilypond-wasm/blob/main/THIRD_PARTY_NOTICES.md";
+    versions = {
+      lilypond = lilypondVersion;
+      guile = guile.version;
+    };
+    lilypondSource = {
+      repository = "https://gitlab.com/lilypond/lilypond";
+      revision =
+        if builtins.isAttrs src
+        then src.rev or null
+        else null;
+      narHash =
+        if builtins.isAttrs src
+        then src.narHash or null
+        else null;
+    };
+  };
+  wasmMetadataFile =
+    builtins.toFile
+    "lilypond-wasm-metadata.json"
+    (builtins.toJSON wasmMetadata);
 in
-  stdenv.mkDerivation (finalAttrs: {
+  stdenv.mkDerivation {
     pname = "lilypond-svg-wasi";
-    version = "2.27.2";
+    version = lilypondVersion;
 
     inherit src;
 
@@ -128,7 +157,13 @@ in
       wasm-opt \
         ${lib.escapeShellArgs requiredFinalWasmOptFlags} \
         lily/out/lilypond \
-        -o lilypond.wasm
+        -o lilypond.optimized.wasm
+
+      python3 ${./add-wasm-custom-section.py} \
+        --name ${wasmMetadataSection} \
+        --payload ${wasmMetadataFile} \
+        lilypond.optimized.wasm \
+        lilypond.wasm
 
       runHook postBuild
     '';
@@ -144,12 +179,13 @@ in
       cp ${../../COPYING} "$license_dir/COPYING"
       cp ${../../LICENSE} "$license_dir/LICENSE"
       cp ${../../THIRD_PARTY_NOTICES.md} "$license_dir/THIRD_PARTY_NOTICES.md"
-      cp -R ${../../third-party/licenses} "$license_dir/third-party"
+      mkdir -p "$license_dir/third-party"
+      cp -R ${../../third-party/licenses} "$license_dir/third-party/licenses"
 
       test -s "$out/bin/lilypond.wasm"
       test -s "$license_dir/COPYING"
-      test -s "$license_dir/third-party/lilypond/LICENSE"
-      test -s "$license_dir/third-party/wasi-libc/LICENSE"
+      test -s "$license_dir/third-party/licenses/lilypond/LICENSE"
+      test -s "$license_dir/third-party/licenses/wasi-libc/LICENSE"
 
       runHook postInstall
     '';
@@ -160,7 +196,12 @@ in
     doInstallCheck = false;
 
     passthru = {
-      inherit requiredFinalWasmOptFlags;
+      inherit
+        requiredFinalWasmOptFlags
+        wasmMetadata
+        wasmMetadataFile
+        wasmMetadataSection
+        ;
     };
 
     meta = {
@@ -169,4 +210,4 @@ in
       license = lib.licenses.gpl3Plus;
       platforms = lib.platforms.all;
     };
-  })
+  }
