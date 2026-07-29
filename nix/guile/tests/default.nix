@@ -75,7 +75,11 @@ in
         --env GUILE_SYSTEM_COMPILED_PATH=/guile-ccache \
         ${smokeProgram}/bin/guile-smoke.wasm
     )"
-    expected_output="guile result: 6"
+    expected_output="$(
+      printf '%s\n' \
+        "guile result: 6" \
+        "guile target word size: 4"
+    )"
 
     test "$smoke_output" = "$expected_output"
 

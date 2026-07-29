@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url";
 import {
   lilypondWasmUrl,
   runtimeEnvironment,
+  runtimeMountOrder,
   runtimeMounts,
   runtimeRequirements,
 } from "@hlolli/lilypond-wasm";
@@ -23,10 +24,10 @@ if (
   throw new Error("the test host does not support the requested Wasm runtime");
 }
 
-const mountArguments = Object.entries(runtimeMounts).flatMap(
-  ([guestPath, hostUrl]) => [
+const mountArguments = runtimeMountOrder.flatMap(
+  (guestPath) => [
     "--dir",
-    `${fileURLToPath(hostUrl)}::${guestPath}`,
+    `${fileURLToPath(runtimeMounts[guestPath])}::${guestPath}`,
   ],
 );
 const environmentArguments = Object.entries(runtimeEnvironment).flatMap(
@@ -42,8 +43,6 @@ const result = spawnSync(
     "run",
     "-W",
     "exceptions=y",
-    "-W",
-    "timeout=600s",
     "-C",
     "cache=n",
     "--dir",
@@ -62,7 +61,10 @@ const result = spawnSync(
     guestOutput,
     guestInput,
   ],
-  {stdio: "inherit"},
+  {
+    stdio: "inherit",
+    timeout: 60_000,
+  },
 );
 
 if (result.error) {

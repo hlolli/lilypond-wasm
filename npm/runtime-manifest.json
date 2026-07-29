@@ -7,9 +7,15 @@
   "wasmExceptions": true,
   "argv0": "/lilypond",
   "writableDirectory": "/work",
+  "mountOrder": [
+    "/lilypond",
+    "/guile-ccache",
+    "/lilypond-lib"
+  ],
   "mounts": {
     "/lilypond": "runtime/lilypond/2.27.2",
-    "/guile-ccache": "runtime/guile-ccache"
+    "/guile-ccache": "runtime/guile-ccache",
+    "/lilypond-lib": "runtime/lilypond-lib"
   },
   "environment": {
     "FONTCONFIG_FILE": "/lilypond/fonts/fonts.conf",
@@ -21,7 +27,7 @@
     "GUILE_SYSTEM_COMPILED_PATH": "/guile-ccache",
     "HOME": "/work/home",
     "LILYPOND_DATADIR": "/lilypond",
-    "LILYPOND_LIBDIR": "/work/lily-lib",
+    "LILYPOND_LIBDIR": "/lilypond-lib",
     "TMPDIR": "/work/tmp",
     "XDG_CACHE_HOME": "/work/cache"
   }

@@ -3,6 +3,7 @@
   lib,
   lilypond,
   lilypondAssets,
+  lilypondBytecode,
   lilypondSourceBundle,
   nodejs,
   stdenvNoCC,
@@ -47,7 +48,7 @@ in
           mkdir -p \
             "$out/dist" \
             "$out/licenses" \
-            "$out/runtime"
+            "$out/runtime/lilypond-lib"
 
           cp \
             README.md \
@@ -86,6 +87,7 @@ in
           cp ${lilypond}/bin/lilypond.wasm "$out/dist/lilypond.wasm"
           cp -R ${lilypondAssets}/share/lilypond "$out/runtime/lilypond"
           cp -R ${guile}/lib/guile/3.0/ccache "$out/runtime/guile-ccache"
+          cp -R ${lilypondBytecode}/ccache "$out/runtime/lilypond-lib/ccache"
 
           source_sha256="$(sha256sum ${sourceArchive} | cut -d ' ' -f 1)"
           wasm_sha256="$(
@@ -118,6 +120,13 @@ in
           test -s "$out/dist/lilypond.wasm"
           test -s "$out/runtime/lilypond/${lilypond.version}/ly/init.ly"
           test -s "$out/runtime/guile-ccache/ice-9/boot-9.go"
+          test -s "$out/runtime/lilypond-lib/ccache/lily/lily.go"
+          test "$(
+            find "$out/runtime/lilypond-lib/ccache/lily" \
+              -type f \
+              -name '*.go' \
+              | wc -l
+          )" -ge 66
           test -s "$out/licenses/lilypond-wasm/THIRD_PARTY_NOTICES.md"
           test -s "$out/licenses/lilypond-assets/URW-Base35-LICENSE"
 

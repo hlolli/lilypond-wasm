@@ -4,13 +4,21 @@ export declare const wasmMetadataSection: "lilypond-wasm.metadata";
 
 export declare const lilypondWasmUrl: URL;
 export declare const lilypondDataUrl: URL;
+export declare const lilypondCompiledUrl: URL;
 export declare const guileCompiledUrl: URL;
 export declare const runtimeManifestUrl: URL;
 
 export declare const runtimeMounts: Readonly<{
   "/lilypond": URL;
   "/guile-ccache": URL;
+  "/lilypond-lib": URL;
 }>;
+
+export declare const runtimeMountOrder: readonly [
+  "/lilypond",
+  "/guile-ccache",
+  "/lilypond-lib",
+];
 
 export declare const runtimeEnvironment: Readonly<{
   FONTCONFIG_FILE: "/lilypond/fonts/fonts.conf";
@@ -22,7 +30,7 @@ export declare const runtimeEnvironment: Readonly<{
   GUILE_SYSTEM_COMPILED_PATH: "/guile-ccache";
   HOME: "/work/home";
   LILYPOND_DATADIR: "/lilypond";
-  LILYPOND_LIBDIR: "/work/lily-lib";
+  LILYPOND_LIBDIR: "/lilypond-lib";
   TMPDIR: "/work/tmp";
   XDG_CACHE_HOME: "/work/cache";
 }>;

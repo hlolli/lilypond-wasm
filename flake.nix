@@ -102,6 +102,10 @@
         lilypond-assets = pkgs.callPackage ./nix/lilypond/assets {
           src = lilypondSource;
         };
+        lilypond-bytecode = pkgs.callPackage ./nix/lilypond/bytecode {
+          inherit guile lilypond;
+          lilypondAssets = lilypond-assets;
+        };
         lilypond = pkgsWasm.callPackage ./nix/lilypond {
           boehmgc = boehm-gc;
           inherit
@@ -125,6 +129,7 @@
         lilypond-npm = pkgs.callPackage ./nix/lilypond/npm.nix {
           inherit guile lilypond;
           lilypondAssets = lilypond-assets;
+          lilypondBytecode = lilypond-bytecode;
           lilypondSourceBundle = lilypond-source-bundle;
         };
         lilypond-source-bundle = pkgs.callPackage ./nix/lilypond/source-bundle.nix {
@@ -297,6 +302,7 @@
           guile = scope.packages.guile;
           lilypond = scope.packages.lilypond;
           lilypondAssets = scope.packages.lilypond-assets;
+          lilypondBytecode = scope.packages.lilypond-bytecode;
         };
         lilypond-npm-smoke = scope.pkgs.callPackage ./nix/lilypond/tests/npm.nix {
           lilypondAssets = scope.packages.lilypond-assets;

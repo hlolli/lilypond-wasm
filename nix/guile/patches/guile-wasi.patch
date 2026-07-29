@@ -753,3 +753,50 @@ index 06352ca34..88a648f51 100644
  
  (define system-library-extensions
    (cond
+diff --git a/module/system/base/compile.scm b/module/system/base/compile.scm
+index 011d097b7..091196540 100644
+--- a/module/system/base/compile.scm
++++ b/module/system/base/compile.scm
+@@ -64,7 +64,11 @@
+            ;; work on systems without fchmod, like MinGW.
+            (let ((perms (or (false-if-exception (stat:perms (stat reference)))
+                             (lognot (umask)))))
+-             (chmod tmpname (logand #o0666 perms)))
++             ;; WASI Preview 1 has no operation for changing file modes.
++             ;; Keep the atomic close and rename, but omit this unsupported
++             ;; metadata update.
++             (unless (string-contains %host-type "wasi")
++               (chmod tmpname (logand #o0666 perms))))
+            (close-port tmp)
+            (rename-file tmpname filename))
+          (lambda args
+diff --git a/module/system/base/target.scm b/module/system/base/target.scm
+index 6531194a2..51d3fb97f 100644
+--- a/module/system/base/target.scm
++++ b/module/system/base/target.scm
+@@ -45,15 +45,16 @@
+ ;;;
+ 
+ ;; Hacky way to get native pointer size without having to load (system
+-;; foreign).
+-(define-syntax %native-word-size
+-  (lambda (stx)
+-    (syntax-case stx ()
+-      (id (identifier? #'id)
+-          (cond
+-           ((< most-positive-fixnum (ash 1 32)) 4)
+-           ((< most-positive-fixnum (ash 1 64)) 8)
+-           (else (error "unexpected!" most-positive-fixnum)))))))
++;; foreign).  Evaluate this at run time: when a native Guile cross-compiles
++;; this module, a macro would otherwise bake the build machine's word size
++;; into the target bytecode.
++(define %native-word-size
++  (cond
++   ((string-prefix? "wasm32-" %host-type) 4)
++   ((string-prefix? "wasm64-" %host-type) 8)
++   ((< most-positive-fixnum (ash 1 32)) 4)
++   ((< most-positive-fixnum (ash 1 64)) 8)
++   (else (error "unexpected!" most-positive-fixnum))))
+ 
+ (define %target-type (make-fluid %host-type))
+ (define %target-endianness (make-fluid (native-endianness)))

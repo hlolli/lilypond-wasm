@@ -1,25 +1,37 @@
 {
+  coreutils,
   guile,
   lilypond,
   lilypondAssets,
+  lilypondBytecode,
   runCommand,
   wasmtime,
 }:
 assert lilypond.version == lilypondAssets.version;
   runCommand "lilypond-svg-wasi-render-smoke-${lilypond.version}"
   {
-    nativeBuildInputs = [wasmtime];
+    nativeBuildInputs = [
+      coreutils
+      wasmtime
+    ];
   }
   ''
-    mkdir -p work/cache/fontconfig work/home work/lily-lib work/tmp
+    mkdir -p work/cache/fontconfig work/home work/tmp
     cp ${./smoke.ly} work/smoke.ly
 
-    wasmtime run \
+    test -s ${lilypondBytecode}/ccache/lily/lily.go
+    test -s ${lilypondBytecode}/ccache/lily/framework-svg.go
+    test \
+      "$(stat -c %Y ${lilypondBytecode}/ccache/lily/lily.go)" \
+      -ge \
+      "$(stat -c %Y ${lilypondAssets}/share/lilypond/${lilypondAssets.version}/scm/lily/lily.scm)"
+
+    timeout 60s wasmtime run \
       -W exceptions=y \
-      -W timeout=600s \
       -C cache=n \
       --dir "$PWD/work::/work" \
       --dir ${lilypondAssets}/share/lilypond/${lilypondAssets.version}::/lilypond \
+      --dir ${lilypondBytecode}/ccache::/lilypond-lib/ccache \
       --dir ${guile}/share/guile/3.0::/guile \
       --dir ${guile}/lib/guile/3.0/ccache::/guile-ccache \
       --env FONTCONFIG_FILE=/lilypond/fonts/fonts.conf \
@@ -31,7 +43,7 @@ assert lilypond.version == lilypondAssets.version;
       --env GUILE_SYSTEM_COMPILED_PATH=/guile-ccache \
       --env HOME=/work/home \
       --env LILYPOND_DATADIR=/lilypond \
-      --env LILYPOND_LIBDIR=/work/lily-lib \
+      --env LILYPOND_LIBDIR=/lilypond-lib \
       --env TMPDIR=/work/tmp \
       --env XDG_CACHE_HOME=/work/cache \
       --argv0 /lilypond \

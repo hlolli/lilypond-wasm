@@ -77,6 +77,14 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
   test -s "$unpacked_package_dir/dist/lilypond.wasm"
   test -s "$unpacked_package_dir/runtime/lilypond/2.27.2/ly/init.ly"
   test -s "$unpacked_package_dir/runtime/guile-ccache/ice-9/boot-9.go"
+  test -s \
+    "$unpacked_package_dir/runtime/lilypond-lib/ccache/lily/lily.go"
+  test "$(
+    find "$unpacked_package_dir/runtime/lilypond-lib/ccache/lily" \
+      -type f \
+      -name '*.go' \
+      | wc -l
+  )" -ge 66
   test -s "$unpacked_package_dir/COPYING"
   test -s "$unpacked_package_dir/LICENSE"
   test -s "$unpacked_package_dir/SOURCE.md"
@@ -106,10 +114,10 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
     'licenses/lilypond-wasm/third-party/licenses/' \
     "$unpacked_package_dir/LICENSE"
   grep -F \
-    '(https://github.com/hlolli/lilypond-wasm/blob/v0.1.0-alpha.1/flake.lock)' \
+    "(https://github.com/hlolli/lilypond-wasm/blob/v${lilypondNpmTarball.version}/flake.lock)" \
     "$unpacked_package_dir/THIRD_PARTY_NOTICES.md"
   grep -F \
-    '(https://github.com/hlolli/lilypond-wasm/tree/v0.1.0-alpha.1/nix/' \
+    "(https://github.com/hlolli/lilypond-wasm/tree/v${lilypondNpmTarball.version}/nix/" \
     "$unpacked_package_dir/THIRD_PARTY_NOTICES.md"
 
   node --input-type=module --eval '
@@ -173,6 +181,19 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
 
   package_dir="$PWD/consumer/node_modules/@hlolli/lilypond-wasm"
   check_release_manifest "$package_dir/package.json"
+
+  # Make source fallback fail, while keeping source times valid for the
+  # matching bytecode. The render must load the packaged cache to pass.
+  for bytecode in \
+    "$package_dir/runtime/lilypond-lib/ccache/lily/"*.go
+  do
+    module_name="$(basename "$bytecode" .go)"
+    source_file="$package_dir/runtime/lilypond/2.27.2/scm/lily/$module_name.scm"
+    printf '%s\n' \
+      '(error "packaged LilyPond bytecode cache was not used")' \
+      > "$source_file"
+    touch -r "$bytecode" "$source_file"
+  done
 
   cp ${./smoke.ly} work/smoke.ly
 

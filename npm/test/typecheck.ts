@@ -1,11 +1,13 @@
 import {
   guileCompiledUrl,
   guileVersion,
+  lilypondCompiledUrl,
   lilypondDataUrl,
   lilypondVersion,
   lilypondWasmUrl,
   runtimeEnvironment,
   runtimeManifestUrl,
+  runtimeMountOrder,
   runtimeMounts,
   runtimeRequirements,
   wasmMetadataSection,
@@ -13,6 +15,7 @@ import {
 
 const assetUrls: URL[] = [
   guileCompiledUrl,
+  lilypondCompiledUrl,
   lilypondDataUrl,
   lilypondWasmUrl,
   runtimeManifestUrl,
@@ -23,9 +26,11 @@ const versions: readonly string[] = [guileVersion, lilypondVersion];
 const metadataSection: string = wasmMetadataSection;
 const preview: "preview1" = runtimeRequirements.wasi;
 const fontconfigFile: string = runtimeEnvironment.FONTCONFIG_FILE;
+const mountOrder: readonly string[] = runtimeMountOrder;
 
 void assetUrls;
 void versions;
 void metadataSection;
 void preview;
 void fontconfigFile;
+void mountOrder;

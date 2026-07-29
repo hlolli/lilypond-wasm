@@ -3,11 +3,13 @@ import {readFile, stat} from "node:fs/promises";
 import {
   guileCompiledUrl,
   guileVersion,
+  lilypondCompiledUrl,
   lilypondDataUrl,
   lilypondVersion,
   lilypondWasmUrl,
   runtimeEnvironment,
   runtimeManifestUrl,
+  runtimeMountOrder,
   runtimeMounts,
   runtimeRequirements,
   wasmMetadataSection,
@@ -23,6 +25,8 @@ assert.equal(manifest.wasm, "dist/lilypond.wasm");
 assert.equal(manifest.metadataSection, wasmMetadataSection);
 
 assert.deepEqual(manifest.environment, runtimeEnvironment);
+assert.deepEqual(manifest.mountOrder, runtimeMountOrder);
+assert.deepEqual(Object.keys(runtimeMounts), runtimeMountOrder);
 assert.deepEqual(
   {
     argv0: manifest.argv0,
@@ -44,6 +48,7 @@ for (const [guestPath, hostUrl] of Object.entries(runtimeMounts)) {
 await Promise.all([
   stat(lilypondWasmUrl),
   stat(new URL("ly/init.ly", lilypondDataUrl)),
+  stat(new URL("ccache/lily/lily.go", lilypondCompiledUrl)),
   stat(new URL("ice-9/boot-9.go", guileCompiledUrl)),
 ]);
 

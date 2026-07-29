@@ -1,6 +1,6 @@
 {
   "name": "@hlolli/lilypond-wasm",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "private": true,
   "description": "Low-level SVG-only LilyPond runtime for WebAssembly and WASI",
   "type": "module",
