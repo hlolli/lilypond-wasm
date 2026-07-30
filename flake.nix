@@ -8,10 +8,16 @@
       url = "gitlab:lilypond/lilypond/master";
       flake = false;
     };
+
+    lilypond-csound-score-plugin = {
+      url = "github:hlolli/lilypond-csound-score-plugin/main";
+      flake = false;
+    };
   };
 
   outputs = {
     lilypond,
+    lilypond-csound-score-plugin,
     nixpkgs,
     self,
     ...
@@ -52,6 +58,10 @@
       name = "lilypond-source";
       path = lilypond.outPath;
     };
+    canonicalLilypondCsoundScorePluginSource = builtins.path {
+      name = "lilypond-csound-score-plugin-source";
+      path = lilypond-csound-score-plugin.outPath;
+    };
     canonicalNixpkgsSource = builtins.path {
       name = "nixpkgs-source";
       path = nixpkgs.outPath;
@@ -65,6 +75,10 @@
         revision = self.rev or self.dirtyRev or null;
         narHash = self.narHash or null;
       };
+      lilypond-csound-score-plugin = {
+        revision = lilypond-csound-score-plugin.rev or null;
+        narHash = lilypond-csound-score-plugin.narHash or null;
+      };
       nixpkgs = {
         revision = nixpkgs.rev or null;
         narHash = nixpkgs.narHash or null;
@@ -77,6 +91,7 @@
       };
       pkgsWasm = pkgs.pkgsCross.wasi32;
       lilypondSource = lilypond;
+      lilypondCsoundScorePluginSource = lilypond-csound-score-plugin;
       packages = rec {
         boehm-gc = pkgsWasm.callPackage ./nix/boehm-gc.nix {};
         expat = pkgsWasm.callPackage ./nix/expat {};
@@ -106,6 +121,18 @@
           inherit guile lilypond;
           lilypondAssets = lilypond-assets;
         };
+        lilypond-csound-score-plugin = pkgs.callPackage ./nix/lilypond-csound-score-plugin {
+          inherit guile lilypond;
+          lilypondAssets = lilypond-assets;
+          lilypondBytecode = lilypond-bytecode;
+          src = lilypondCsoundScorePluginSource;
+          version =
+            "0.3-"
+            + (
+              lilypondCsoundScorePluginSource.shortRev
+                or "source"
+            );
+        };
         lilypond = pkgsWasm.callPackage ./nix/lilypond {
           boehmgc = boehm-gc;
           inherit
@@ -130,6 +157,7 @@
           inherit guile lilypond;
           lilypondAssets = lilypond-assets;
           lilypondBytecode = lilypond-bytecode;
+          lilypondCsoundScorePlugin = lilypond-csound-score-plugin;
           lilypondSourceBundle = lilypond-source-bundle;
         };
         lilypond-source-bundle = pkgs.callPackage ./nix/lilypond/source-bundle.nix {
@@ -137,6 +165,10 @@
           libcxx = pkgsWasm.llvmPackages.libcxx;
           lilypondPackage = lilypond;
           lilypondAssets = lilypond-assets;
+          lilypondCsoundScorePluginSource =
+            canonicalLilypondCsoundScorePluginSource;
+          lilypondCsoundScorePluginVersion =
+            lilypond-csound-score-plugin.version;
           inherit
             projectSource
             sourcePins
@@ -306,8 +338,12 @@
         };
         lilypond-npm-smoke = scope.pkgs.callPackage ./nix/lilypond/tests/npm.nix {
           lilypondAssets = scope.packages.lilypond-assets;
+          lilypondCsoundScorePlugin =
+            scope.packages.lilypond-csound-score-plugin;
           lilypondNpmTarball = scope.packages.lilypond-npm-tarball;
         };
+        lilypond-csound-score-plugin-smoke =
+          scope.packages.lilypond-csound-score-plugin;
         lilypond-source-bundle-manifest = let
           bundle = scope.packages.lilypond-source-bundle;
           expectedNames = scope.pkgs.writeText "lilypond-source-names" (

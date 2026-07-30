@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hlolli <hlolli@users.noreply.github.com>
+Date: Thu, 30 Jul 2026 00:00:00 +0300
+Subject: [PATCH] Support LilyPond 2.27 WASI bytecode
+
+Load the Scheme files through Guile's load path so the packaged bytecode
+cache can replace source evaluation. LilyPond 2.27 renamed the duration
+conversion procedure. It also exposes constant quasiquoted pairs as
+immutable values in this build, so copy the shared session entries before
+the exporter updates them.
+---
+ src/lpcs.ily          |  4 ++--
+ src/lpcs/lilypond.scm | 10 ++++++----
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/src/lpcs.ily b/src/lpcs.ily
+--- a/src/lpcs.ily
++++ b/src/lpcs.ily
+@@ -7,8 +7,8 @@
+      (ly:error "LPCS: cannot find lpcs/core.scm; add the plugin's src directory with -I"))
+    (unless lilypond
+      (ly:error "LPCS: cannot find lpcs/lilypond.scm; add the plugin's src directory with -I"))
+-   (load core)
+-   (load lilypond))
++   (primitive-load-path "lpcs/core")
++   (primitive-load-path "lpcs/lilypond"))
+ 
+ csoundExportOptions =
+ #(define-void-function (options) (list?)
+diff --git a/src/lpcs/lilypond.scm b/src/lpcs/lilypond.scm
+--- a/src/lpcs/lilypond.scm
++++ b/src/lpcs/lilypond.scm
+@@ -732,7 +732,7 @@
+   (* 4 (lpcs-grace-rational moment)))
+ 
+ (define (lpcs-duration-quarters duration)
+-  (lpcs-quarter-main (ly:duration-length duration)))
++  (lpcs-quarter-main (ly:duration->moment duration)))
+ 
+ (define lpcs-diatonic-semitones '#(0 2 4 5 7 9 11))
+ 
+@@ -1511,8 +1511,10 @@
+        output))
+     (set! lpcs-score-output-counts
+           (cons (cons output #t) lpcs-score-output-counts))
+-    (set! lpcs-session
+-          `((events . ())
++    (set! lpcs-session
++          (map
++           (lambda (entry) (cons (car entry) (cdr entry)))
++           `((events . ())
+             (gestures . ())
+             (tempos . ())
+             (timeline-markers . ())
+@@ -1525,7 +1527,7 @@
+             (next-voice-id . 1)
+             (output . ,output)
+             (root-source-file . ,(lpcs-root-input-file-name))
+-            (options . ,lpcs-export-options)))
++            (options . ,lpcs-export-options))))
+     lpcs-session))
+ 
+ (define lpcs-supported-articulations
+-- 
+2.50.1

@@ -7,6 +7,7 @@ This package contains:
 - `dist/lilypond.wasm`;
 - LilyPond Scheme files, input files, music fonts, and text fonts;
 - compiled LilyPond Scheme modules for faster start-up;
+- the LilyPond Csound Score plugin and its compiled Scheme modules;
 - Guile compiled modules needed at run time;
 - project and source details in the `lilypond-wasm.metadata` Wasm custom section;
 - the full licence and third-party notice trees.
@@ -50,6 +51,19 @@ The complete Guile source remains in the source archive named in `SOURCE.md`.
 
 The npm package version tracks this wrapper and bundle format. The
 `lilypondVersion` export records the pinned upstream LilyPond version.
+
+## Csound score export
+
+The package bundles the precompiled LilyPond Csound Score plugin. Include it
+without adding an include path:
+
+```lilypond
+\include "lpcs.ily"
+```
+
+The plugin writes `.lpcs.json` and `.sco` files beside the LilyPond output.
+It prepares Csound score data, but this package does not include or run
+Csound.
 
 ## Licence and source
 

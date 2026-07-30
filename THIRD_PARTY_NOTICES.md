@@ -45,6 +45,7 @@ The asset output has mixed terms and must keep them separate.
 | Part | Pinned version | License | Copied terms | Notes |
 | --- | --- | --- | --- | --- |
 | LilyPond Scheme and input data | same pinned LilyPond commit | GPL-3.0-or-later, with file-level exceptions | [`lilypond`](third-party/licenses/lilypond) | `ly/articulate.ly` is GPL-3.0-only. |
+| LilyPond Csound Score plugin | commit `670d37508535a1186f6bf31417819a2ab609c1cc` | GPL-3.0-only | `licenses/lilypond-csound-score-plugin/LICENSE` in the npm package | The package includes its source and precompiled Scheme modules. |
 | Emmentaler and Feta fonts | same pinned LilyPond commit | (GPL-3.0-or-later WITH the LilyPond font exception) OR OFL-1.1 | [`emmentaler`](third-party/licenses/emmentaler) | `Emmentaler` and `Feta` are reserved font names under the OFL choice. |
 | URW Base35 fonts | tag `20200910` | AGPL-3.0-only WITH the URW document font exception | [`urw-base35`](third-party/licenses/urw-base35) | The exception names PostScript and PDF documents. It does not grant a broad SVG or web-font exception. |
 | DejaVu fonts | 2.37 | LicenseRef-DejaVu | [`dejavu`](third-party/licenses/dejavu) | The file includes the Bitstream Vera, Arev, and DejaVu terms. |
@@ -61,6 +62,7 @@ These paths change upstream code for WASI or for the SVG-only build:
 - [`nix/pango/patches`](nix/pango/patches): Pango.
 - [`nix/lilypond/patches`](nix/lilypond/patches): LilyPond.
 - [`nix/lilypond/assets/patches`](nix/lilypond/assets/patches): LilyPond assets.
+- [`nix/lilypond-csound-score-plugin/patches`](nix/lilypond-csound-score-plugin/patches): LilyPond Csound Score plugin.
 
 The top-level GPL-3.0-or-later grant covers work owned by this project's
 author. It does not replace the rights or terms for upstream code shown in a

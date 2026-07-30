@@ -4,6 +4,7 @@
   lilypond,
   lilypondAssets,
   lilypondBytecode,
+  lilypondCsoundScorePlugin,
   lilypondSourceBundle,
   nodejs,
   stdenvNoCC,
@@ -88,6 +89,15 @@ in
           cp -R ${lilypondAssets}/share/lilypond "$out/runtime/lilypond"
           cp -R ${guile}/lib/guile/3.0/ccache "$out/runtime/guile-ccache"
           cp -R ${lilypondBytecode}/ccache "$out/runtime/lilypond-lib/ccache"
+          chmod -R u+w \
+            "$out/runtime/lilypond" \
+            "$out/runtime/lilypond-lib"
+          cp -R \
+            ${lilypondCsoundScorePlugin}/share/lilypond/${lilypond.version}/. \
+            "$out/runtime/lilypond/${lilypond.version}/"
+          cp -R \
+            ${lilypondCsoundScorePlugin}/ccache/. \
+            "$out/runtime/lilypond-lib/ccache/"
 
           source_sha256="$(sha256sum ${sourceArchive} | cut -d ' ' -f 1)"
           wasm_sha256="$(
@@ -116,11 +126,21 @@ in
           cp -R \
             ${lilypondAssets}/share/licenses/lilypond-assets \
             "$out/licenses/lilypond-assets"
+          cp -R \
+            ${lilypondCsoundScorePlugin}/share/licenses/lilypond-csound-score-plugin \
+            "$out/licenses/lilypond-csound-score-plugin"
 
           test -s "$out/dist/lilypond.wasm"
           test -s "$out/runtime/lilypond/${lilypond.version}/ly/init.ly"
+          test -s "$out/runtime/lilypond/${lilypond.version}/ly/lpcs.ily"
+          test -s \
+            "$out/runtime/lilypond/${lilypond.version}/scm/lpcs/core.scm"
+          test -s \
+            "$out/runtime/lilypond/${lilypond.version}/scm/lpcs/lilypond.scm"
           test -s "$out/runtime/guile-ccache/ice-9/boot-9.go"
           test -s "$out/runtime/lilypond-lib/ccache/lily/lily.go"
+          test -s "$out/runtime/lilypond-lib/ccache/lpcs/core.go"
+          test -s "$out/runtime/lilypond-lib/ccache/lpcs/lilypond.go"
           test "$(
             find "$out/runtime/lilypond-lib/ccache/lily" \
               -type f \
@@ -129,6 +149,7 @@ in
           )" -ge 66
           test -s "$out/licenses/lilypond-wasm/THIRD_PARTY_NOTICES.md"
           test -s "$out/licenses/lilypond-assets/URW-Base35-LICENSE"
+          test -s "$out/licenses/lilypond-csound-score-plugin/LICENSE"
 
           node --check "$out/index.js"
 
@@ -149,6 +170,8 @@ in
         packageName = packageMetadata.name;
         guileVersion = guile.version;
         lilypondVersion = lilypond.version;
+        lilypondCsoundScorePluginVersion =
+          lilypondCsoundScorePlugin.version;
       };
 
       meta = {

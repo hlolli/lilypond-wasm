@@ -5,6 +5,8 @@
   libcxx,
   lib,
   lilypondAssets,
+  lilypondCsoundScorePluginSource,
+  lilypondCsoundScorePluginVersion,
   lilypondPackage,
   lilypondSource,
   linkedSources,
@@ -119,6 +121,12 @@
       })
       (mkSource {
         kind = "directory";
+        name = "lilypond-csound-score-plugin";
+        source = lilypondCsoundScorePluginSource;
+        version = lilypondCsoundScorePluginVersion;
+      })
+      (mkSource {
+        kind = "directory";
         name = "lilypond-wasm";
         source = projectSource;
         inherit version;
@@ -153,10 +161,14 @@
   projectArchivePath = (entryFor "lilypond-wasm").path;
   nixpkgsArchivePath = (entryFor "nixpkgs").path;
   lilypondArchivePath = (entryFor "lilypond").path;
+  lilypondCsoundScorePluginArchivePath =
+    (entryFor "lilypond-csound-score-plugin").path;
 
   inputOverrides =
     "--override-input nixpkgs \"path:$PWD/${nixpkgsArchivePath}\""
-    + " --override-input lilypond \"path:$PWD/${lilypondArchivePath}\"";
+    + " --override-input lilypond \"path:$PWD/${lilypondArchivePath}\""
+    + " --override-input lilypond-csound-score-plugin"
+    + " \"path:$PWD/${lilypondCsoundScorePluginArchivePath}\"";
 
   manifest = {
     schemaVersion = 1;

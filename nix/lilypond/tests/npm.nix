@@ -2,6 +2,7 @@
   diffutils,
   gnutar,
   lilypondAssets,
+  lilypondCsoundScorePlugin,
   lilypondNpmTarball,
   lib,
   nodejs,
@@ -76,9 +77,18 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
 
   test -s "$unpacked_package_dir/dist/lilypond.wasm"
   test -s "$unpacked_package_dir/runtime/lilypond/2.27.2/ly/init.ly"
+  test -s "$unpacked_package_dir/runtime/lilypond/2.27.2/ly/lpcs.ily"
+  test -s \
+    "$unpacked_package_dir/runtime/lilypond/2.27.2/scm/lpcs/core.scm"
+  test -s \
+    "$unpacked_package_dir/runtime/lilypond/2.27.2/scm/lpcs/lilypond.scm"
   test -s "$unpacked_package_dir/runtime/guile-ccache/ice-9/boot-9.go"
   test -s \
     "$unpacked_package_dir/runtime/lilypond-lib/ccache/lily/lily.go"
+  test -s \
+    "$unpacked_package_dir/runtime/lilypond-lib/ccache/lpcs/core.go"
+  test -s \
+    "$unpacked_package_dir/runtime/lilypond-lib/ccache/lpcs/lilypond.go"
   test "$(
     find "$unpacked_package_dir/runtime/lilypond-lib/ccache/lily" \
       -type f \
@@ -96,6 +106,8 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
     "$unpacked_package_dir/licenses/lilypond-wasm/third-party/licenses/lilypond/LICENSE"
   test -s \
     "$unpacked_package_dir/licenses/lilypond-assets/URW-Base35-LICENSE"
+  test -s \
+    "$unpacked_package_dir/licenses/lilypond-csound-score-plugin/LICENSE"
   test -z "$(find "$unpacked_package_dir" -type l -print -quit)"
 
   diff -r \
@@ -104,6 +116,9 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
   diff -r \
     ${lilypondAssets}/share/licenses/lilypond-assets \
     "$unpacked_package_dir/licenses/lilypond-assets"
+  diff -r \
+    ${lilypondCsoundScorePlugin}/share/licenses/lilypond-csound-score-plugin \
+    "$unpacked_package_dir/licenses/lilypond-csound-score-plugin"
   grep -F \
     '(licenses/lilypond-wasm/third-party/licenses/lilypond)' \
     "$unpacked_package_dir/THIRD_PARTY_NOTICES.md"
@@ -194,6 +209,16 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
       > "$source_file"
     touch -r "$bytecode" "$source_file"
   done
+  for bytecode in \
+    "$package_dir/runtime/lilypond-lib/ccache/lpcs/"*.go
+  do
+    module_name="$(basename "$bytecode" .go)"
+    source_file="$package_dir/runtime/lilypond/2.27.2/scm/lpcs/$module_name.scm"
+    printf '%s\n' \
+      '(error "packaged LPCS bytecode cache was not used")' \
+      > "$source_file"
+    touch -r "$bytecode" "$source_file"
+  done
 
   cp ${./smoke.ly} work/smoke.ly
 
@@ -213,7 +238,30 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
   grep -F ">text</tspan>" work/smoke.svg
   grep -F ">works.</tspan>" work/smoke.svg
 
+  cp ${./plugin.ly} work/plugin.ly
+
+  WASMTIME_BIN="${wasmtime}/bin/wasmtime" \
+    LILYPOND_WASM_TEST_WORK="$PWD/work" \
+    LILYPOND_WASM_TEST_INPUT="$PWD/work/plugin.ly" \
+    node consumer/render.mjs
+
+  test -s work/smoke.svg
+  test -s work/smoke.lpcs.json
+  test -s work/smoke.sco
+  node --input-type=module --eval '
+    import assert from "node:assert/strict";
+    import {readFileSync} from "node:fs";
+
+    const document = JSON.parse(readFileSync(process.argv[1], "utf8"));
+    assert.equal(document.format, "lpcs-ir");
+    assert.equal(document.version, 3);
+    assert.ok(document.events.length > 0);
+  ' work/smoke.lpcs.json
+  grep -F "i 17" work/smoke.sco
+
   mkdir -p "$out"
   cp "pack/$tarball" "$out/"
   cp work/smoke.svg "$out/"
+  cp work/smoke.lpcs.json "$out/"
+  cp work/smoke.sco "$out/"
 ''

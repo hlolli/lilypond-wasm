@@ -17,6 +17,23 @@
         "type": "gitlab"
       }
     },
+    "lilypond-csound-score-plugin": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785346805,
+        "narHash": "sha256-KfKpbeU0R023d+ZdvsKinOrBJ81ez9Ayy8L3u0drAIw=",
+        "owner": "hlolli",
+        "repo": "lilypond-csound-score-plugin",
+        "rev": "670d37508535a1186f6bf31417819a2ab609c1cc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hlolli",
+        "ref": "main",
+        "repo": "lilypond-csound-score-plugin",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1785110946,
@@ -36,6 +53,7 @@
     "root": {
       "inputs": {
         "lilypond": "lilypond",
+        "lilypond-csound-score-plugin": "lilypond-csound-score-plugin",
         "nixpkgs": "nixpkgs"
       }
     }
