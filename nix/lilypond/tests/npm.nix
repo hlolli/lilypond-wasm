@@ -247,6 +247,7 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
 
   test -s work/smoke.svg
   test -s work/smoke.lpcs.json
+  test -s work/smoke.lpcs.timeline.json
   test -s work/smoke.sco
   node --input-type=module --eval '
     import assert from "node:assert/strict";
@@ -257,11 +258,25 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
     assert.equal(document.version, 3);
     assert.ok(document.events.length > 0);
   ' work/smoke.lpcs.json
+  node --input-type=module --eval '
+    import assert from "node:assert/strict";
+    import {readFileSync} from "node:fs";
+
+    const document = JSON.parse(readFileSync(process.argv[1], "utf8"));
+    assert.equal(document.format, "lpcs-timeline");
+    assert.equal(document.version, 1);
+    assert.ok(document.cursorPoints.length > 0);
+  ' work/smoke.lpcs.timeline.json
+  grep -F 'class="lpcs-anchor"' work/smoke.svg
+  grep -F 'data-lpcs-playback-occurrence-id="1"' work/smoke.svg
+  grep -F 'data-lpcs-anchor-id="na-' work/smoke.svg
+  grep -F 'class="lpcs-staff"' work/smoke.svg
   grep -F "i 17" work/smoke.sco
 
   mkdir -p "$out"
   cp "pack/$tarball" "$out/"
   cp work/smoke.svg "$out/"
   cp work/smoke.lpcs.json "$out/"
+  cp work/smoke.lpcs.timeline.json "$out/"
   cp work/smoke.sco "$out/"
 ''

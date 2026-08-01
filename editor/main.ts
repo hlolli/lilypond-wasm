@@ -10,6 +10,11 @@ import {
 } from "./audio/audio-transport";
 import { preloadCsoundModule } from "./audio/csound-module";
 import { renderScoreToWav } from "./audio/csound-renderer";
+import { parsePlaybackTimeline } from "./audio/playback-timeline";
+import {
+  ScorePlayhead,
+  type ScorePreviewSurface,
+} from "./audio/score-playhead";
 import { isLilyPondFile } from "./filesystem/file-types";
 import { defaultSource } from "./starter-source";
 import {
@@ -18,7 +23,11 @@ import {
 } from "./workspace-controller";
 
 type DiagnosticLevel = "info" | "warning" | "error" | "success";
-type CsoundScoreSource = { name: string; source: string };
+type CsoundScoreSource = {
+  name: string;
+  source: string;
+  timelineSource: string | null;
+};
 
 type WorkerMessage =
   | {
@@ -49,6 +58,7 @@ type WorkerMessage =
       scores: Array<{
         name: string;
         source: string;
+        timelineSource: string | null;
       }>;
     }
   | {
@@ -100,6 +110,7 @@ let audioRenderSequence = 0;
 let audioScoreSource: CsoundScoreSource | null = null;
 let audioScoreName: string | null = null;
 let scoreTransport: AudioTransport;
+let scorePlayhead: ScorePlayhead;
 let audioDisplayOverride: {
   state: "empty" | "preparing" | "ready" | "error";
   label: string;
@@ -255,7 +266,6 @@ let worker: Worker | null = null;
 let requestId = 0;
 let messageCount = 0;
 let packageReady = false;
-let previewObjectUrls: string[] = [];
 let previewSummaryBeforeRender = "No render yet";
 
 function canRenderCurrentDocument() {
@@ -417,6 +427,7 @@ function syncAudioTransport(snapshot: AudioTransportSnapshot) {
   }
 }
 
+scorePlayhead = new ScorePlayhead(scoreAudio);
 scoreTransport = new AudioTransport(scoreAudio, {
   onChange: (snapshot) => {
     if (
@@ -425,6 +436,7 @@ scoreTransport = new AudioTransport(scoreAudio, {
     ) {
       audioDisplayOverride = null;
     }
+    scorePlayhead.sync(snapshot);
     syncAudioTransport(snapshot);
   },
   onError: (error) => {
@@ -447,6 +459,7 @@ function clearScoreAudio(label = "No Csound score") {
   stopAudioPreparation();
   audioScoreSource = null;
   audioScoreName = null;
+  scorePlayhead.setTimeline(null);
   audioDisplayOverride = {
     state: "empty",
     label,
@@ -498,6 +511,24 @@ function setScoreAudioSource(scores: CsoundScoreSource[]) {
   const score = scores[0];
   audioScoreSource = score;
   audioScoreName = score.name;
+  if (score.timelineSource) {
+    try {
+      scorePlayhead.setTimeline(parsePlaybackTimeline(score.timelineSource));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      scorePlayhead.setTimeline(null);
+      addDiagnostic(
+        "warning",
+        `Could not load the playback cursor for ${score.name}: ${message}`,
+      );
+    }
+  } else {
+    scorePlayhead.setTimeline(null);
+    addDiagnostic(
+      "warning",
+      `${score.name} has no LPCS timeline; audio will play without a score cursor`,
+    );
+  }
   showScoreSourceReady();
   void preloadCsoundModule().catch((error) => {
     if (audioScoreSource !== score) {
@@ -586,7 +617,7 @@ async function prepareScoreAudio() {
   }
 }
 
-function assertSvg(source: string) {
+function parseSvgPage(source: string) {
   const documentNode = new DOMParser().parseFromString(
     source,
     "image/svg+xml",
@@ -596,37 +627,79 @@ function assertSvg(source: string) {
   if (parseError || documentNode.documentElement.localName !== "svg") {
     throw new Error("LilyPond returned an unreadable SVG document.");
   }
+
+  const root = documentNode.documentElement;
+  const normalizedSource = new XMLSerializer().serializeToString(root);
+  const viewBox = root.getAttribute("viewBox")
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (
+    viewBox?.length === 4 &&
+    Number.isFinite(viewBox[2]) &&
+    Number.isFinite(viewBox[3]) &&
+    viewBox[2] > 0 &&
+    viewBox[3] > 0
+  ) {
+    return { source: normalizedSource, width: viewBox[2], height: viewBox[3] };
+  }
+
+  const width = Number.parseFloat(root.getAttribute("width") ?? "");
+  const height = Number.parseFloat(root.getAttribute("height") ?? "");
+  return {
+    source: normalizedSource,
+    width: Number.isFinite(width) && width > 0 ? width : 1,
+    height: Number.isFinite(height) && height > 0 ? height : 1,
+  };
 }
 
-function releasePreviewObjectUrls() {
-  for (const url of previewObjectUrls) {
-    URL.revokeObjectURL(url);
-  }
-  previewObjectUrls = [];
+function svgFrameDocument(source: string) {
+  return [
+    "<!doctype html><html><head><meta charset=\"utf-8\">",
+    '<meta http-equiv="Content-Security-Policy" ',
+    'content="default-src \'none\'; img-src data: blob:; ',
+    'style-src \'unsafe-inline\'">',
+    "<style>html,body{width:100%;height:100%;margin:0;overflow:hidden}",
+    "svg{width:100%;height:100%;display:block}</style></head><body>",
+    source,
+    "</body></html>",
+  ].join("");
+}
+
+function clearScorePages() {
+  scorePlayhead.setPages([]);
 }
 
 function showScore(svgs: string[], files: string[]) {
-  svgs.forEach(assertSvg);
-  const nextObjectUrls = svgs.map((source) =>
-    URL.createObjectURL(new Blob([source], { type: "image/svg+xml" }))
-  );
-  const pages = nextObjectUrls.map((url, index) => {
+  const descriptions = svgs.map(parseSvgPage);
+  const pageRecords = descriptions.map(({ source, width, height }, index) => {
     const page = document.createElement("div");
     page.className = "score-page";
-    const image = document.createElement("img");
-    image.className = "score-page__image";
-    image.src = url;
-    image.alt =
+    const label =
       svgs.length === 1 ? "Rendered score" : `Rendered score, page ${index + 1}`;
-    page.append(image);
-    return page;
+    page.setAttribute("role", "img");
+    page.setAttribute("aria-label", label);
+
+    const frame = document.createElement("iframe");
+    frame.className = "score-page__frame";
+    frame.title = label;
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    frame.setAttribute("sandbox", "allow-same-origin");
+    frame.style.aspectRatio = `${width} / ${height}`;
+    frame.srcdoc = svgFrameDocument(source);
+    page.append(frame);
+    return {
+      page,
+      surface: { container: page, frame } satisfies ScorePreviewSurface,
+    };
   });
 
-  releasePreviewObjectUrls();
-  previewObjectUrls = nextObjectUrls;
-  preview.replaceChildren(...pages);
+  clearScorePages();
+  preview.replaceChildren(...pageRecords.map(({ page }) => page));
+  scorePlayhead.setPages(pageRecords.map(({ surface }) => surface));
   previewSummary.textContent =
-    `${pages.length} ${pages.length === 1 ? "page" : "pages"}`;
+    `${pageRecords.length} ${pageRecords.length === 1 ? "page" : "pages"}`;
   outputName.textContent =
     files.length === 1 ? files[0] : `${files.length} SVG files`;
   outputName.title = files.join(", ");
@@ -634,7 +707,7 @@ function showScore(svgs: string[], files: string[]) {
 
 function showRenderError(message: string) {
   clearScoreAudio();
-  releasePreviewObjectUrls();
+  clearScorePages();
   const error = document.createElement("p");
   error.className = "preview__error";
   error.textContent =
@@ -870,10 +943,12 @@ audioStop.addEventListener("click", () => {
   }
   audioDisplayOverride = null;
   scoreTransport.stop();
+  scorePlayhead.reset();
 });
 
 audioSeek.addEventListener("input", () => {
   scoreTransport.seek(Number(audioSeek.value));
+  scorePlayhead.seek();
 });
 
 clearConsole.addEventListener("click", () => {
@@ -914,12 +989,14 @@ window.addEventListener("pagehide", (event) => {
   disposeWorker();
   stopAudioPreparation();
   scoreTransport.dispose();
-  releasePreviewObjectUrls();
+  clearScorePages();
+  scorePlayhead.dispose();
   workspaceController?.dispose();
 });
 
 updateDiagnosticCount();
 syncAudioTransport(scoreTransport.snapshot);
+scorePlayhead.sync(scoreTransport.snapshot);
 createWorker();
 workspaceController = new WorkspaceController({
   editor,

@@ -20,11 +20,11 @@
     "lilypond-csound-score-plugin": {
       "flake": false,
       "locked": {
-        "lastModified": 1785346805,
-        "narHash": "sha256-KfKpbeU0R023d+ZdvsKinOrBJ81ez9Ayy8L3u0drAIw=",
+        "lastModified": 1785612314,
+        "narHash": "sha256-7E4fhA4w/ntMzzWKhWdVaGu5+EaTJayz/3SVThGuzjo=",
         "owner": "hlolli",
         "repo": "lilypond-csound-score-plugin",
-        "rev": "670d37508535a1186f6bf31417819a2ab609c1cc",
+        "rev": "26e16a60fadb885aefce9f62a8eb7143a7cef7e0",
         "type": "github"
       },
       "original": {

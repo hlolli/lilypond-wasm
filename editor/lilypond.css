@@ -979,6 +979,7 @@ a:visited {
 }
 
 .score-page {
+  position: relative;
   width: min(100%, 64rem);
   padding: clamp(var(--space-md), 3vw, var(--space-xl));
   border: var(--rule-hair) solid var(--color-rule-2);
@@ -986,12 +987,28 @@ a:visited {
   color: var(--color-score-ink);
 }
 
-.score-page__image {
+.score-page__frame {
   width: 100%;
   height: auto;
   display: block;
   background: var(--color-score-paper);
   color: var(--color-score-ink);
+}
+
+.score-page__frame {
+  border: 0;
+  pointer-events: none;
+}
+
+.score-page__playhead {
+  position: absolute;
+  z-index: 1;
+  width: var(--rule-focus);
+  min-height: var(--space-md);
+  transform: translateX(-50%);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 var(--rule-hair) var(--color-accent-ink);
+  pointer-events: none;
 }
 
 .preview__error {

@@ -8,6 +8,8 @@ describe("default LilyPond source", () => {
     expect(defaultSource).toContain("(strict . #t)");
     expect(defaultSource).toContain("(adapter-instrument . 17)");
     expect(defaultSource).toContain('(target . "trace")');
+    expect(defaultSource).toContain("(emit-timeline . #t)");
+    expect(defaultSource).toContain("\\csoundUnfoldForExport {");
     expect(defaultSource).toContain("\\score {");
     expect(defaultSource).toContain("\\layout { }");
   });

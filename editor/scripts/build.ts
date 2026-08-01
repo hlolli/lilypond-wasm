@@ -285,6 +285,13 @@ async function copyRuntimeNoticeSource() {
       includeRepositorySource,
     ),
   ]);
+
+  const noticePath = resolve(destinationRoot, "THIRD_PARTY_NOTICES.md");
+  const notice = await Bun.file(noticePath).text();
+  await Bun.write(
+    noticePath,
+    notice.replaceAll("](editor/", "](../../source/editor/"),
+  );
 }
 
 function sourceLink(path: string) {

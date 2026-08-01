@@ -5,14 +5,17 @@
   (strict . #t)
   (adapter-instrument . 17)
   (target . "trace")
+  (emit-timeline . #t)
 )
 
 \score {
   \new Staff {
     \new Voice = "lead" {
-      \tempo 4 = 90
-      c'4~ c'4-.
-      d'4(-> e'4)
+      \csoundUnfoldForExport {
+        \tempo 4 = 90
+        c'4~ c'4-.
+        d'4(-> e'4)
+      }
     }
   }
   \layout { }

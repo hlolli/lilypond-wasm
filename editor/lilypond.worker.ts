@@ -400,12 +400,24 @@ async function render(request: RenderRequest) {
     const scores = outputEntries
       .filter((name) => name.endsWith(".sco"))
       .sort((left, right) => left.localeCompare(right))
-      .map((name) => ({
-        name,
-        source: String(
-          fs.readFileSync(`/render-output/${name}`, "utf8"),
-        ),
-      }));
+      .map((name) => {
+        const timelineName =
+          `${name.slice(0, -".sco".length)}.lpcs.timeline.json`;
+        return {
+          name,
+          source: String(
+            fs.readFileSync(`/render-output/${name}`, "utf8"),
+          ),
+          timelineSource: outputEntries.includes(timelineName)
+            ? String(
+                fs.readFileSync(
+                  `/render-output/${timelineName}`,
+                  "utf8",
+                ),
+              )
+            : null,
+        };
+      });
 
     worker.postMessage({
       type: "result",

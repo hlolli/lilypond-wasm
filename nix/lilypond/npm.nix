@@ -83,7 +83,10 @@ in
           "(${releaseTreeUrl}/nix)" \
           --replace-fail \
           "(nix/" \
-          "(${releaseTreeUrl}/nix/"
+          "(${releaseTreeUrl}/nix/" \
+          --replace-fail \
+          "(editor/" \
+          "(${releaseTreeUrl}/editor/"
 
           cp ${lilypond}/bin/lilypond.wasm "$out/dist/lilypond.wasm"
           cp -R ${lilypondAssets}/share/lilypond "$out/runtime/lilypond"
