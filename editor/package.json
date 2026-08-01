@@ -20,7 +20,7 @@
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.7",
     "@csound/browser": "7.0.0-beta31",
-    "@hlolli/lilypond-wasm": "0.1.0-alpha.3",
+    "@hlolli/lilypond-wasm": "0.1.0-alpha.4",
     "@lezer/highlight": "1.2.3",
     "@napi-rs/wasm-runtime": "1.1.6",
     "@tybys/wasm-util": "0.10.3",

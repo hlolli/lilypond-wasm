@@ -9,7 +9,7 @@ revision are in the [editor source record](EDITOR_SOURCE.md).
 
 ## LilyPond WASM run time
 
-The editor uses `@hlolli/lilypond-wasm@0.1.0-alpha.3`. Its full dependency
+The editor uses `@hlolli/lilypond-wasm@0.1.0-alpha.4`. Its full dependency
 list and licence links are in the bundled
 [LilyPond WASM notices](licenses/lilypond-wasm/THIRD_PARTY_NOTICES.md).
 The output also keeps the LilyPond assets and Csound score plugin licence
