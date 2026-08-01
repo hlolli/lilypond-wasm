@@ -93,6 +93,7 @@ jobs:
           test -s editor/dist/source/npm/codemirror-lang-lilypond/src/index.ts
           test -s editor/dist/source/editor/SOURCE_FILES.md
           test -s editor/dist/source/editor/main.ts
+          test -s editor/dist/source/editor/starter-source.ts
           grep -Fq 'Copyright (c) Microsoft Corporation.' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/tslib/2.8.1/LICENSE.txt
           grep -Fq 'Copyright Joyent, Inc. and other Node contributors.' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/NODE-JOYENT-MIT.txt
           grep -Fq 'Copyright (c) 2020 Kris Zyp' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/cbor-x-MIT.txt

@@ -21,6 +21,9 @@ The editor uses the exact published `@hlolli/lilypond-wasm` version in
 The `npm/` directory at the repository root is a release template and does not
 contain the generated Wasm or run-time files.
 
+The default scratchpad loads `lpcs.ily` and enables the Csound score exporter,
+so its first render produces a `.sco` file that the audio transport can play.
+
 The interface includes Lekton by the Accademia di Belle Arti di Urbino. The
 font is available under the SIL Open Font License 1.1, whose full text is
 embedded in the font file. The build also copies the Csound and LilyPond

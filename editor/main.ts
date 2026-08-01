@@ -4,7 +4,6 @@ import { keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { lilypond } from "codemirror-lang-lilypond";
-import { lilypondVersion } from "@hlolli/lilypond-wasm";
 import {
   AudioTransport,
   type AudioTransportSnapshot,
@@ -12,6 +11,7 @@ import {
 import { preloadCsoundModule } from "./audio/csound-module";
 import { renderScoreToWav } from "./audio/csound-renderer";
 import { isLilyPondFile } from "./filesystem/file-types";
+import { defaultSource } from "./starter-source";
 import {
   WorkspaceController,
   type WorkspaceRenderContext,
@@ -56,28 +56,6 @@ type WorkerMessage =
       requestId: number;
       message: string;
     };
-
-const defaultSource = String.raw`\version "${lilypondVersion}"
-
-\header {
-  title = "LilyPond in the browser"
-  subtitle = "A local WASI render"
-  tagline = ##f
-}
-
-\paper {
-  #(set-paper-size "a5")
-}
-
-\relative c' {
-  \key c \major
-  \time 4/4
-  c4 d e f |
-  g2 g |
-  a4 a g g |
-  f1 \bar "|."
-}
-`;
 
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
