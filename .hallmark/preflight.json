@@ -1,0 +1,15 @@
+{
+  "scanned_at": "2026-08-01",
+  "font_stack": "Nimbus Sans and Lekton",
+  "palette": "Dark green terminal surfaces with warm score paper",
+  "motion": "Cut except for render and playback progress",
+  "spacing": "4pt semantic token scale",
+  "framework": "Vanilla HTML and TypeScript built with Bun; CodeMirror 6; File System Access API; @csound/browser",
+  "preserve": [
+    "Workbench 30/70 editor and score split",
+    "Bottom diagnostic console",
+    "Dark, sparse visual character",
+    "Local Lekton font",
+    "Scratchpad as the default state"
+  ]
+}

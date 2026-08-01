@@ -1,0 +1,93 @@
+/* Hallmark · token set: Terminal Workbench · paper band: dark · display style: sans + mono · accent hue: signal green */
+@font-face {
+  font-family: "Lekton";
+  src: url("./assets/fonts/lekton.regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --color-paper: oklch(11% 0.018 145);
+  --color-paper-2: oklch(15% 0.022 145);
+  --color-paper-3: oklch(19% 0.024 145);
+  --color-rule: oklch(28% 0.03 140);
+  --color-rule-2: oklch(50% 0.05 140);
+  --color-muted: oklch(61% 0.065 140);
+  --color-neutral: oklch(72% 0.085 140);
+  --color-ink-2: oklch(84% 0.06 138);
+  --color-ink: oklch(94% 0.025 138);
+  --color-accent: oklch(78% 0.19 138);
+  --color-accent-ink: oklch(11% 0.018 145);
+  --color-focus: oklch(86% 0.19 138);
+  --color-error: oklch(72% 0.18 28);
+  --color-warning: oklch(80% 0.14 85);
+  --color-score-paper: oklch(97% 0.012 88);
+  --color-score-ink: oklch(18% 0.015 88);
+  --color-selection: oklch(39% 0.09 140);
+  --color-selection-ink: var(--color-ink);
+  --color-backdrop: oklch(5% 0.01 145 / 0.82);
+  --color-clear: transparent;
+
+  /* Syntax roles stay within the Terminal palette. */
+  --color-syntax-command: var(--color-accent);
+  --color-syntax-name: var(--color-ink);
+  --color-syntax-literal: var(--color-warning);
+  --color-syntax-variable: var(--color-ink-2);
+  --color-syntax-operator: var(--color-neutral);
+  --color-syntax-punctuation: var(--color-muted);
+  --color-syntax-comment: var(--color-muted);
+  --color-syntax-invalid: var(--color-error);
+
+  --font-display: "Nimbus Sans", "DejaVu Sans", sans-serif;
+  --font-body: "Nimbus Sans", "DejaVu Sans", sans-serif;
+  --font-mono: "Lekton", "Nimbus Mono PS", ui-monospace, monospace;
+
+  --weight-regular: 400;
+  --weight-bold: 700;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+
+  --tracking-label: 0.08em;
+  --tracking-display: -0.018em;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+
+  --target-touch: 2.75rem;
+  --panel-header: 3.75rem;
+  --console-height: clamp(10rem, 24svh, 15rem);
+
+  --rule-hair: 1px;
+  --rule-focus: 2px;
+  --offset-focus-inset: -2px;
+  --offset-hover: -1px;
+  --offset-active: 1px;
+  --radius-small: 0.25rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --dur-spinner: 900ms;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 200;
+}

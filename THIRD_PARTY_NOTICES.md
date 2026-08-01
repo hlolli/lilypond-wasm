@@ -1,8 +1,13 @@
 # Third-party notices
 
-This file lists the code and data that this project builds into its Wasm and
-asset outputs. The license names below are short summaries. The copied
-upstream terms in [`third-party/licenses`](third-party/licenses) control.
+This file lists the code and data that this project builds into its Wasm,
+asset, and browser editor outputs. The license names below are short
+summaries. The copied terms control.
+
+The native build terms are in
+[`third-party/licenses`](third-party/licenses). The editor build copies its
+bundled npm terms into `editor/dist/licenses/npm` from the exact packages in
+`editor/bun.lock`.
 
 The source repo does not contain the fetched upstream source trees.
 [`flake.lock`](flake.lock) pins them, and the files under [`nix`](nix) hold
@@ -67,6 +72,26 @@ These paths change upstream code for WASI or for the SVG-only build:
 The top-level GPL-3.0-or-later grant covers work owned by this project's
 author. It does not replace the rights or terms for upstream code shown in a
 patch.
+
+## Browser editor
+
+The editor bundles `@csound/browser@7.0.0-beta31`, CodeMirror 6, Lezer, the
+LilyPond CodeMirror mode, and the Wasm file-system helpers listed in
+[`editor/package.json`](editor/package.json). It also serves Lekton under the
+SIL Open Font License 1.1.
+
+The editor build reads Bun's bundle metadata and copies the package metadata
+and top-level licence and notice files for each included npm package. For two
+packages whose tarballs omit their declared MIT text, the source tree supplies
+it from upstream source or the package metadata. It also supplies full terms
+and attributions for third-party code inside the published
+`@napi-rs/wasm-runtime` file-system prebundle. The build copies Csound's
+third-party list and the Lekton font, which contains its full OFL text. The
+editor's public notice index is
+[`editor/THIRD_PARTY_NOTICES.md`](editor/THIRD_PARTY_NOTICES.md).
+
+Each public editor build contains its exact source snapshot, root licence and
+notice files, build support files, revision, and clean or dirty tree state.
 
 ## Binary distribution
 

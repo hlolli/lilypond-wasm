@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta
+      name="description"
+      content="Edit LilyPond source and render an SVG score with the local WebAssembly package."
+    >
+    <meta name="color-scheme" content="dark">
+    <title>LilyPond · WASM workbench</title>
+    <link rel="stylesheet" href="./lilypond.css">
+  </head>
+  <body>
+    <header class="tool-bar" aria-label="LilyPond workbench">
+      <a class="wordmark" href="/" aria-label="Back to Csound tools">
+        lilypond<span aria-hidden="true">.wasm</span>
+      </a>
+
+      <div class="tool-bar__action">
+        <div class="tool-bar__folder-actions">
+          <button
+            class="action-button action-button--secondary folder-button"
+            id="folder-button"
+            type="button"
+            data-action="open"
+            data-state="idle"
+            title="Open a local folder with read and write access"
+          >
+            Open folder
+          </button>
+          <button
+            class="action-button action-button--danger forget-folder-button"
+            id="forget-folder"
+            type="button"
+            data-state="idle"
+            title="Remove saved folder access and recovery data"
+            hidden
+          >
+            Forget saved folder
+          </button>
+        </div>
+        <p
+          class="runtime-state"
+          id="runtime-state"
+          data-state="loading"
+          role="status"
+          aria-atomic="true"
+        >
+          <span class="runtime-state__mark" aria-hidden="true"></span>
+          <span id="runtime-state-label">Loading local package</span>
+        </p>
+        <button
+          class="action-button action-button--primary render-button"
+          id="render-button"
+          type="button"
+          data-action="render"
+          data-state="loading"
+          aria-describedby="render-hint"
+          disabled
+        >
+          <span class="render-button__spinner" aria-hidden="true"></span>
+          <span class="render-button__label">Loading renderer…</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <div
+        class="workspace-notice"
+        id="workspace-notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+
+      <div class="workbench__main">
+        <section class="panel editor-panel" aria-labelledby="source-heading">
+          <header class="panel__header">
+            <div>
+              <h1 id="source-heading">LilyPond source</h1>
+              <p id="render-hint">Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd></p>
+            </div>
+            <div
+              class="workspace-view-tabs"
+              id="workspace-view-tabs"
+              role="tablist"
+              aria-label="Workspace view"
+              hidden
+            >
+              <button
+                class="workspace-view-tab"
+                id="workspace-editor-tab"
+                type="button"
+                role="tab"
+                aria-controls="workspace-editor-view"
+                aria-selected="true"
+                tabindex="0"
+              >
+                Editor
+              </button>
+              <button
+                class="workspace-view-tab"
+                id="workspace-files-tab"
+                type="button"
+                role="tab"
+                aria-controls="workspace-files-view"
+                aria-selected="false"
+                tabindex="-1"
+              >
+                Files
+              </button>
+            </div>
+            <div class="editor-file-action">
+              <p class="file-name" id="active-file-name">main.ly</p>
+              <button
+                class="action-button action-button--save save-button"
+                id="save-file"
+                type="button"
+                data-state="idle"
+                hidden
+              >
+                Save file
+              </button>
+            </div>
+          </header>
+          <div class="workspace-editor" id="workspace-editor" data-mode="scratchpad">
+            <section
+              class="workspace-editor__view workspace-editor__view--editor"
+              id="workspace-editor-view"
+            >
+              <div
+                class="tab-bar"
+                id="tab-bar"
+                role="tablist"
+                aria-orientation="horizontal"
+                aria-label="Open files"
+                hidden
+              ></div>
+
+              <div
+                class="editor-stage"
+                id="editor-panel-content"
+                role="tabpanel"
+              >
+                <div class="editor-empty" id="editor-empty" hidden>
+                  <div class="editor-empty__content">
+                    <h2 id="editor-empty-title">No file open</h2>
+                    <p id="editor-empty-message">
+                      Choose a text file from the Files view.
+                    </p>
+                    <div class="editor-empty__actions">
+                      <button
+                        class="action-button action-button--primary"
+                        id="main-file-action"
+                        type="button"
+                        data-state="idle"
+                        hidden
+                      >
+                        Create main.ly
+                      </button>
+                      <button
+                        class="action-button action-button--secondary"
+                        id="browse-files"
+                        type="button"
+                      >
+                        Browse files
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="editor-host" id="editor"></div>
+              </div>
+            </section>
+
+            <section
+              class="workspace-editor__view workspace-editor__view--files"
+              id="workspace-files-view"
+              hidden
+            >
+              <aside
+                class="file-browser"
+                id="file-browser"
+                aria-labelledby="file-browser-heading"
+              >
+                <header class="file-browser__header">
+                  <div>
+                    <h2 id="file-browser-heading">Project files</h2>
+                    <p id="workspace-root-name"></p>
+                  </div>
+                  <div class="file-browser__actions">
+                    <button
+                      class="action-button action-button--secondary"
+                      id="new-file"
+                      type="button"
+                      data-state="idle"
+                    >
+                      New text file
+                    </button>
+                    <button
+                      class="action-button action-button--quiet"
+                      id="refresh-tree"
+                      type="button"
+                      data-state="idle"
+                      title="Read the folder again"
+                    >
+                      Refresh files
+                    </button>
+                    <button
+                      class="action-button action-button--danger"
+                      id="disconnect-folder"
+                      type="button"
+                      data-state="idle"
+                      title="Forget this folder and return to the scratchpad"
+                    >
+                      Disconnect folder
+                    </button>
+                  </div>
+                </header>
+                <div
+                  class="file-tree"
+                  id="file-tree"
+                ></div>
+              </aside>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel preview-panel" aria-labelledby="preview-heading">
+          <header class="panel__header">
+            <div>
+              <h2 id="preview-heading">Score preview</h2>
+              <p id="preview-summary">No render yet</p>
+            </div>
+            <p class="file-name" id="output-name">score.svg</p>
+          </header>
+          <div class="preview" id="preview">
+            <div class="preview__empty" id="preview-empty">
+              <div class="empty-staff" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <p>Render the source to inspect LilyPond’s SVG output.</p>
+            </div>
+          </div>
+          <footer
+            class="score-transport"
+            id="score-transport"
+            data-state="empty"
+            aria-label="Csound score playback"
+          >
+            <div class="score-transport__actions">
+              <button
+                class="action-button action-button--secondary score-transport__play"
+                id="audio-play-pause"
+                type="button"
+                disabled
+              >
+                Play
+              </button>
+              <button
+                class="action-button action-button--quiet score-transport__stop"
+                id="audio-stop"
+                type="button"
+                disabled
+              >
+                Stop
+              </button>
+            </div>
+            <div class="score-transport__timeline">
+              <input
+                id="audio-seek"
+                type="range"
+                min="0"
+                max="0"
+                step="0.01"
+                value="0"
+                aria-label="Playback position"
+                disabled
+              >
+              <output id="audio-time" for="audio-seek">0:00 / 0:00</output>
+            </div>
+            <p
+              class="score-transport__state"
+              id="audio-state"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span class="score-transport__mark" aria-hidden="true"></span>
+              <span id="audio-state-label">No Csound score</span>
+            </p>
+            <audio id="score-audio" preload="metadata" hidden></audio>
+          </footer>
+        </section>
+      </div>
+
+      <section class="console" aria-labelledby="console-heading">
+        <header class="console__header">
+          <div class="console__title">
+            <h2 id="console-heading">Diagnostics</h2>
+            <span id="diagnostic-count">0 messages</span>
+          </div>
+          <button
+            class="action-button action-button--quiet console__clear"
+            id="clear-console"
+            type="button"
+          >
+            Clear
+          </button>
+        </header>
+        <ol
+          class="console__output"
+          id="console-output"
+          aria-label="Diagnostic messages"
+        ></ol>
+      </section>
+    </main>
+
+    <dialog class="save-conflict" id="save-conflict-dialog">
+      <form method="dialog">
+        <h2>File changed outside this editor</h2>
+        <p id="save-conflict-message"></p>
+        <ul class="save-conflict__choices">
+          <li><strong>Keep editing</strong> writes nothing.</li>
+          <li><strong>Use disk version</strong> discards this tab’s edits.</li>
+          <li><strong>Replace file on disk</strong> discards the outside changes.</li>
+        </ul>
+        <div class="save-conflict__actions">
+          <button
+            class="action-button action-button--primary"
+            type="submit"
+            value="cancel"
+            autofocus
+          >
+            Keep editing
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="reload"
+          >
+            Use disk version
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="overwrite"
+          >
+            Replace file on disk
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="draft-recovery" id="draft-recovery-dialog">
+      <form method="dialog">
+        <h2>Unsaved work found</h2>
+        <p id="draft-recovery-message"></p>
+        <p class="draft-recovery__detail">
+          The recovery draft has edits that are not in the file on disk.
+        </p>
+        <div class="draft-recovery__actions">
+          <button
+            class="action-button action-button--primary"
+            type="submit"
+            value="restore"
+            autofocus
+          >
+            Restore draft
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="discard"
+          >
+            Discard draft
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog
+      class="new-file-dialog"
+      id="new-file-dialog"
+      aria-labelledby="new-file-title"
+      aria-describedby="new-file-description"
+    >
+      <form id="new-file-form" novalidate>
+        <h2 id="new-file-title">New text file</h2>
+        <p id="new-file-description">
+          Add an empty text file to the open folder. Existing files will open
+          without being changed.
+        </p>
+        <div class="new-file-dialog__field">
+          <label for="new-file-path">File path</label>
+          <input
+            id="new-file-path"
+            name="path"
+            type="text"
+            placeholder="parts/violin.ily"
+            maxlength="240"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="new-file-help"
+            required
+          >
+          <p id="new-file-help" aria-live="polite">
+            Use an existing folder and a supported text extension.
+          </p>
+        </div>
+        <div class="new-file-dialog__actions">
+          <button
+            class="action-button action-button--primary"
+            id="create-file"
+            type="submit"
+            data-state="idle"
+          >
+            Create file
+          </button>
+          <button
+            class="action-button action-button--quiet"
+            id="cancel-new-file"
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer class="tool-footer">
+      <p>
+        Local npm package · WASI Preview 1 · SVG only ·
+        <a href="./THIRD_PARTY_NOTICES.md">licences and source notices</a>
+      </p>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
