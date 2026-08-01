@@ -45,10 +45,11 @@ the `npm/` source template, which has no generated Wasm or run-time files.
 If publishing from a local login, turn off provenance for that command:
 
 ```sh
-NPM_CONFIG_PROVENANCE=false npm publish \
+npm publish \
   release/npm/hlolli-lilypond-wasm-0.1.0-alpha.4.tgz \
   --access public \
-  --tag next
+  --tag next \
+  --provenance=false
 ```
 
 After the first version exists, configure a trusted GitHub publisher before
