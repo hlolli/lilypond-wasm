@@ -76,6 +76,9 @@ in
           "(third-party/licenses/" \
           "(licenses/lilypond-wasm/third-party/licenses/" \
           --replace-fail \
+          "(third-party/sources/" \
+          "(${releaseTreeUrl}/third-party/sources/" \
+          --replace-fail \
           "(flake.lock)" \
           "(${releaseBlobUrl}/flake.lock)" \
           --replace-fail \

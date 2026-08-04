@@ -134,6 +134,9 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
   grep -F \
     "(https://github.com/hlolli/lilypond-wasm/tree/v${lilypondNpmTarball.version}/nix/" \
     "$unpacked_package_dir/THIRD_PARTY_NOTICES.md"
+  grep -F \
+    "(https://github.com/hlolli/lilypond-wasm/tree/v${lilypondNpmTarball.version}/third-party/sources/codemirror-lang-csound)" \
+    "$unpacked_package_dir/THIRD_PARTY_NOTICES.md"
 
   node --input-type=module --eval '
     import {access, readFile} from "node:fs/promises";
