@@ -29,6 +29,29 @@ function packageRoot(packageName: string) {
 const lilypondPackageRoot = packageRoot("@hlolli/lilypond-wasm");
 const csoundBrowserPackageRoot = packageRoot("@csound/browser");
 const lilypondLanguagePackageRoot = packageRoot("codemirror-lang-lilypond");
+const pdfkitPackageRoot = packageRoot("pdfkit");
+const pdfkitStandalonePackages = [
+  "@noble/ciphers",
+  "@noble/hashes",
+  "@swc/helpers",
+  "base64-js",
+  "brotli",
+  "browserify-zlib",
+  "clone",
+  "dfa",
+  "fast-deep-equal",
+  "fontkit",
+  "inherits",
+  "js-md5",
+  "linebreak",
+  "pako",
+  "png-js",
+  "restructure",
+  "tiny-inflate",
+  "tslib",
+  "unicode-properties",
+  "unicode-trie",
+] as const;
 const bundledNoticeFallbacks = new Map<string, string[]>([
   [
     "@napi-rs/wasm-runtime",
@@ -206,6 +229,46 @@ async function buildLilypondRuntimePack() {
     copyFile(
       resolve(lilypondFontRoot, "NimbusSans-Bold.otf"),
       resolve(outputRoot, "fonts/NimbusSans-Bold.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusSans-Italic.otf"),
+      resolve(outputRoot, "fonts/NimbusSans-Italic.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusSans-BoldItalic.otf"),
+      resolve(outputRoot, "fonts/NimbusSans-BoldItalic.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusMonoPS-Regular.otf"),
+      resolve(outputRoot, "fonts/NimbusMonoPS-Regular.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusMonoPS-Bold.otf"),
+      resolve(outputRoot, "fonts/NimbusMonoPS-Bold.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusMonoPS-Italic.otf"),
+      resolve(outputRoot, "fonts/NimbusMonoPS-Italic.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "NimbusMonoPS-BoldItalic.otf"),
+      resolve(outputRoot, "fonts/NimbusMonoPS-BoldItalic.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "C059-Roman.otf"),
+      resolve(outputRoot, "fonts/C059-Roman.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "C059-Bold.otf"),
+      resolve(outputRoot, "fonts/C059-Bold.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "C059-Italic.otf"),
+      resolve(outputRoot, "fonts/C059-Italic.otf"),
+    ),
+    copyFile(
+      resolve(lilypondFontRoot, "C059-BdIta.otf"),
+      resolve(outputRoot, "fonts/C059-BdIta.otf"),
     ),
     copyFile(
       resolve(lilypondPackageRoot, "COPYING"),
@@ -447,6 +510,9 @@ async function copyEditorSource() {
     Bun.write(resolve(sourceRoot, "README.md"), sourceReadme),
     Bun.write(resolve(outputRoot, "EDITOR_SOURCE.md"), publicSourceEntry),
   ]);
+  await copyPdfkitPrebundleNotices(
+    resolve(editorSourceRoot, "licenses/npm/pdfkit"),
+  );
 }
 
 type PackageManifest = {
@@ -455,6 +521,221 @@ type PackageManifest = {
   license?: string;
   repository?: string | { url?: string };
 };
+
+async function copyPdfkitPrebundleNotices(destinationRoot: string) {
+  const packages: Array<{
+    name: string;
+    version: string;
+    license: string;
+    files: string[];
+  }> = [];
+
+  for (const name of pdfkitStandalonePackages) {
+    const sourceRoot = resolve(projectRoot, "node_modules", name);
+    const manifestPath = resolve(sourceRoot, "package.json");
+    const manifest = await Bun.file(manifestPath).json() as PackageManifest;
+    const version = manifest.version ?? "unknown";
+    const packageDestination = resolve(
+      destinationRoot,
+      "prebundled/packages",
+      name,
+      version,
+    );
+    const entries = await readdir(sourceRoot, { withFileTypes: true });
+    const licenseFiles = entries
+      .filter((entry) =>
+        entry.isFile() &&
+        /^(?:licen[cs]e|copying|notice)(?:[._-].*)?$/i.test(entry.name)
+      )
+      .map((entry) => entry.name)
+      .sort();
+    const copiedFiles = licenseFiles.length > 0
+      ? licenseFiles
+      : manifest.license === "MIT"
+      ? ["DECLARED-MIT.txt"]
+      : [];
+
+    await Promise.all([
+      copyFile(manifestPath, resolve(packageDestination, "package.json")),
+      ...licenseFiles.map((fileName) =>
+        copyFile(
+          resolve(sourceRoot, fileName),
+          resolve(packageDestination, fileName),
+        )
+      ),
+      ...(copiedFiles.includes("DECLARED-MIT.txt")
+        ? [
+          copyFile(
+            resolve(pdfkitPackageRoot, "LICENSE"),
+            resolve(packageDestination, "DECLARED-MIT.txt"),
+          ),
+        ]
+        : []),
+    ]);
+
+    packages.push({
+      name,
+      version,
+      license: manifest.license ?? "See source notices",
+      files: copiedFiles,
+    });
+  }
+
+  const termsRoot = resolve(destinationRoot, "prebundled/terms");
+  const standaloneSource = await Bun.file(
+    resolve(pdfkitPackageRoot, "js/pdfkit.standalone.js"),
+  ).text();
+  const moduleNames = new Set<string>();
+  for (const match of standaloneSource.matchAll(
+    /,(\{(?:"[^"\n]+":\d+,?)+\})\](?:,\d+:\[function|\},\{\},\[\d+\]\)\()/g,
+  )) {
+    try {
+      const dependencies = JSON.parse(match[1] ?? "{}") as Record<string, number>;
+      for (const dependency of Object.keys(dependencies)) {
+        if (dependency.startsWith(".")) {
+          continue;
+        }
+        const normalized = dependency.replace(/\/$/, "");
+        const name = normalized === "_process"
+          ? "process"
+          : normalized.startsWith("@")
+          ? normalized.split("/").slice(0, 2).join("/")
+          : normalized.split("/", 1)[0];
+        if (name) {
+          moduleNames.add(name);
+        }
+      }
+    } catch {
+      // Keep the exact prebuilt source even if a future module map changes.
+    }
+  }
+  for (const expectedName of [
+    "@noble/ciphers",
+    "available-typed-arrays",
+    "fontkit",
+    "pako",
+    "readable-stream",
+  ]) {
+    if (!moduleNames.has(expectedName)) {
+      throw new Error(
+        `PDFKit's standalone module inventory is missing ${expectedName}.`,
+      );
+    }
+  }
+  await Promise.all([
+    copyFile(
+      resolve(pdfkitPackageRoot, "LICENSE"),
+      resolve(destinationRoot, "LICENSE"),
+    ),
+    copyFile(
+      resolve(pdfkitPackageRoot, "package.json"),
+      resolve(destinationRoot, "package.json"),
+    ),
+    copyFile(
+      resolve(pdfkitPackageRoot, "js/pdfkit.standalone.js"),
+      resolve(destinationRoot, "PREBUNDLED_SOURCE.js"),
+    ),
+    copyFile(
+      resolve(repositoryRoot, "third-party/licenses/wasi-libc/LICENSE-APACHE"),
+      resolve(termsRoot, "Apache-2.0.txt"),
+    ),
+    copyFile(
+      resolve(
+        projectRoot,
+        "licenses/npm/@napi-rs/wasm-runtime/prebundled/ieee754/1.2.1/LICENSE",
+      ),
+      resolve(termsRoot, "BSD-3-Clause-ieee754.txt"),
+    ),
+    copyFile(
+      resolve(
+        projectRoot,
+        "licenses/npm/@napi-rs/wasm-runtime/prebundled/tslib/2.8.1/LICENSE.txt",
+      ),
+      resolve(termsRoot, "0BSD-tslib.txt"),
+    ),
+    copyFile(
+      resolve(
+        projectRoot,
+        "licenses/npm/@napi-rs/wasm-runtime/prebundled/buffer/6.0.3/LICENSE",
+      ),
+      resolve(termsRoot, "MIT-buffer.txt"),
+    ),
+    copyFile(
+      resolve(
+        projectRoot,
+        "licenses/npm/@napi-rs/wasm-runtime/prebundled/safe-buffer/5.2.1/LICENSE",
+      ),
+      resolve(termsRoot, "MIT-safe-buffer.txt"),
+    ),
+    copyFile(
+      resolve(
+        projectRoot,
+        "licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/NODE-JOYENT-MIT.txt",
+      ),
+      resolve(termsRoot, "MIT-Node-Joyent.txt"),
+    ),
+    copyFile(
+      resolve(projectRoot, "licenses/npm/pdfkit/INSPECT-JS-MIT.txt"),
+      resolve(termsRoot, "MIT-Inspect-JS.txt"),
+    ),
+    copyFile(
+      resolve(projectRoot, "node_modules/pako/lib/zlib/README"),
+      resolve(termsRoot, "Zlib-pako.txt"),
+    ),
+  ]);
+
+  const rows = packages.map((entry) => {
+    const root = `prebundled/packages/${sourceLink(entry.name)}/${entry.version}`;
+    const files = entry.files.length > 0
+      ? entry.files.map((file) => `[${file}](${root}/${file})`).join(", ")
+      : `[package metadata](${root}/package.json)`;
+    return `| \`${entry.name}\` | ${entry.version} | ${entry.license} | ${files} |`;
+  });
+  const notice = [
+    "# PDFKit standalone browser bundle",
+    "",
+    "The editor imports `pdfkit@0.19.1` through its published",
+    "`js/pdfkit.standalone.js` file. That Browserify file contains PDFKit,",
+    "its run-time packages, browser shims, and standard PDF font metrics.",
+    "",
+    "The build keeps the [exact published file](PREBUNDLED_SOURCE.js),",
+    "[PDFKit metadata](package.json), and [PDFKit MIT terms](LICENSE). Its",
+    "inline copyright and licence notices stay intact.",
+    "",
+    "## Locked top-level run-time packages",
+    "",
+    "| Package | Version | Declared licence | Copied terms |",
+    "| --- | --- | --- | --- |",
+    ...rows,
+    "",
+    "## Distinct external names in the Browserify module map",
+    "",
+    ...[...moduleNames].sort().map((name) => `- \`${name}\``),
+    "",
+    "Browserify also packs Node browser shims and small support modules into",
+    "the one file. The list above comes from that file, but its module map does",
+    "not state nested package versions and can contain more than one copy of a",
+    "name. The exact prebuilt source controls. Its source notices remain intact,",
+    "and full terms that its short notices refer to are copied here:",
+    "",
+    "- [Apache-2.0](prebundled/terms/Apache-2.0.txt) for Google Brotli and `@swc/helpers`.",
+    "- [BSD-3-Clause](prebundled/terms/BSD-3-Clause-ieee754.txt) for `ieee754`.",
+    "- [0BSD](prebundled/terms/0BSD-tslib.txt) for `tslib`.",
+    "- [MIT buffer terms](prebundled/terms/MIT-buffer.txt) and [safe-buffer terms](prebundled/terms/MIT-safe-buffer.txt).",
+    "- [Node and Joyent MIT terms](prebundled/terms/MIT-Node-Joyent.txt) for the stream and utility shims.",
+    "- [Inspect JS MIT terms](prebundled/terms/MIT-Inspect-JS.txt) for the `call-bind`, `es-*`, typed-array, and related helpers.",
+    "- [zlib terms](prebundled/terms/Zlib-pako.txt) for pako's ported zlib code.",
+    "",
+    "The package table records the editor's exact locked top-level install. It",
+    "helps trace the source, but does not claim to version every module packed",
+    "earlier by PDFKit upstream.",
+    "",
+  ].join("\n");
+  await Bun.write(
+    resolve(destinationRoot, "PREBUNDLED_THIRD_PARTY_NOTICES.md"),
+    notice,
+  );
+}
 
 function bundledPackageRoot(inputPath: string) {
   const normalizedPath = inputPath.split(sep).join("/");
@@ -527,12 +808,16 @@ async function copyBundledPackageNotices(
       )
       .map((entry) => entry.name)
       .sort();
-    const fallbackNoticeFiles = (
-      bundledNoticeFallbacks.get(name) ?? []
-    ).filter((fileName) => !noticeFiles.includes(fileName));
     const canonicalLilypondNotice = name === "@hlolli/lilypond-wasm" &&
       noticeFiles.includes("THIRD_PARTY_NOTICES.md");
     const napiPrebundle = name === "@napi-rs/wasm-runtime";
+    const pdfkitPrebundle = name === "pdfkit";
+    const fallbackNoticeFiles = (
+      bundledNoticeFallbacks.get(name) ?? []
+    ).filter((fileName) =>
+      !noticeFiles.includes(fileName) &&
+      !(pdfkitPrebundle && fileName === "PREBUNDLED_THIRD_PARTY_NOTICES.md")
+    );
     const packageNoticeFiles = canonicalLilypondNotice
       ? noticeFiles.filter((fileName) => fileName !== "THIRD_PARTY_NOTICES.md")
       : noticeFiles;
@@ -541,6 +826,9 @@ async function copyBundledPackageNotices(
       ...fallbackNoticeFiles,
       ...(canonicalLilypondNotice ? ["THIRD_PARTY_NOTICES.md"] : []),
       ...(napiPrebundle ? ["PREBUNDLED_SOURCE.js"] : []),
+      ...(pdfkitPrebundle
+        ? ["PREBUNDLED_SOURCE.js", "PREBUNDLED_THIRD_PARTY_NOTICES.md"]
+        : []),
     ].sort();
     const lilypondNoticeRedirect = [
       "# LilyPond WASM notices",
@@ -582,6 +870,11 @@ async function copyBundledPackageNotices(
             resolve(packageRoot, "dist/fs.js"),
             resolve(destinationRoot, "PREBUNDLED_SOURCE.js"),
           ),
+        ]
+        : []),
+      ...(pdfkitPrebundle
+        ? [
+          copyPdfkitPrebundleNotices(destinationRoot),
         ]
         : []),
     ]);
@@ -677,6 +970,126 @@ async function assertLazyCsoundChunk(metafile: Bun.BuildMetafile | undefined) {
   );
 }
 
+function outputPathForImport(
+  metafile: Bun.BuildMetafile,
+  importPath: string,
+) {
+  const normalizedImport = normalizedMetafilePath(importPath);
+  const paths = Object.keys(metafile.outputs);
+  const exact = paths.find((path) =>
+    normalizedMetafilePath(path) === normalizedImport
+  );
+  if (exact) {
+    return exact;
+  }
+
+  const fileName = normalizedImport.split("/").at(-1);
+  const matches = fileName
+    ? paths.filter((path) => normalizedMetafilePath(path).endsWith(`/${fileName}`))
+    : [];
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function reachableOutputs(
+  metafile: Bun.BuildMetafile,
+  roots: string[],
+) {
+  const reached = new Set<string>();
+  const pending = [...roots];
+
+  while (pending.length > 0) {
+    const path = pending.pop();
+    if (!path || reached.has(path)) {
+      continue;
+    }
+    reached.add(path);
+    const output = metafile.outputs[path];
+    if (!output) {
+      continue;
+    }
+    for (const entry of output.imports) {
+      const importedPath = outputPathForImport(metafile, entry.path);
+      if (importedPath && !reached.has(importedPath)) {
+        pending.push(importedPath);
+      }
+    }
+  }
+
+  return reached;
+}
+
+async function assertLazyPdfChunks(metafile: Bun.BuildMetafile | undefined) {
+  if (!metafile) {
+    throw new Error("The editor build did not return bundle metadata.");
+  }
+
+  const outputs = Object.entries(metafile.outputs);
+  const initialEntry = outputs.find(([path, output]) =>
+    path.endsWith(".js") && output.entryPoint?.endsWith("index.html")
+  );
+  if (!initialEntry) {
+    throw new Error("The editor build has no JavaScript entry for index.html.");
+  }
+
+  const [initialPath, initialOutput] = initialEntry;
+  const isPdfWrapperInput = (path: string) =>
+    normalizedMetafilePath(path).endsWith("pdf/export-pdf.ts");
+  const isPdfInput = (path: string) => {
+    const normalized = normalizedMetafilePath(path);
+    return isPdfWrapperInput(path) ||
+      normalized.includes("node_modules/pdfkit/") ||
+      normalized.includes("node_modules/svg-to-pdfkit/");
+  };
+  if (Object.keys(initialOutput.inputs).some(isPdfInput)) {
+    throw new Error("The PDF wrapper leaked into the initial editor bundle.");
+  }
+
+  const pdfOutputs = outputs.filter(([, output]) =>
+    Object.keys(output.inputs).some(isPdfInput)
+  );
+  if (pdfOutputs.length === 0) {
+    throw new Error("The editor build has no PDF export chunks.");
+  }
+
+  const wrapperOutput = outputs.find(([, output]) =>
+    Object.keys(output.inputs).some(isPdfWrapperInput)
+  );
+  if (!wrapperOutput) {
+    throw new Error("The editor build has no chunk for pdf/export-pdf.ts.");
+  }
+  const [wrapperPath] = wrapperOutput;
+  const importsWrapperLazily = initialOutput.imports.some((entry) =>
+    entry.kind === "dynamic-import" &&
+    normalizedMetafilePath(entry.path) === normalizedMetafilePath(wrapperPath)
+  );
+  if (!importsWrapperLazily) {
+    throw new Error("The initial editor bundle does not load PDF export lazily.");
+  }
+
+  const staticRoots = initialOutput.imports
+    .filter((entry) => entry.kind !== "dynamic-import")
+    .map((entry) => outputPathForImport(metafile, entry.path))
+    .filter((path): path is string => path !== null);
+  const staticOutputs = reachableOutputs(metafile, staticRoots);
+  const dynamicOutputs = reachableOutputs(metafile, [wrapperPath]);
+
+  for (const [path] of pdfOutputs) {
+    if (staticOutputs.has(path)) {
+      throw new Error(`The initial editor bundle loads ${path} eagerly.`);
+    }
+    if (!dynamicOutputs.has(path)) {
+      throw new Error(`The PDF export cannot reach its lazy chunk ${path}.`);
+    }
+    await requireFile(resolve(outputRoot, normalizedMetafilePath(path)));
+  }
+
+  const bytes = pdfOutputs.reduce((total, [, output]) => total + output.bytes, 0);
+  console.log(
+    `Lazy PDF chunks: ${normalizedMetafilePath(initialPath)} -> ` +
+      `${pdfOutputs.length} chunks (${(bytes / 1024 / 1024).toFixed(1)} MiB)`,
+  );
+}
+
 async function assertMarkdownLinks(relativePaths: string[]) {
   const failures: string[] = [];
 
@@ -714,6 +1127,16 @@ async function assertBuildOutput() {
     "runtime-manifest.json",
     "fonts/NimbusSans-Regular.otf",
     "fonts/NimbusSans-Bold.otf",
+    "fonts/NimbusSans-Italic.otf",
+    "fonts/NimbusSans-BoldItalic.otf",
+    "fonts/NimbusMonoPS-Regular.otf",
+    "fonts/NimbusMonoPS-Bold.otf",
+    "fonts/NimbusMonoPS-Italic.otf",
+    "fonts/NimbusMonoPS-BoldItalic.otf",
+    "fonts/C059-Roman.otf",
+    "fonts/C059-Bold.otf",
+    "fonts/C059-Italic.otf",
+    "fonts/C059-BdIta.otf",
     "COPYING",
     "LICENSE",
     "SOURCE.md",
@@ -740,6 +1163,10 @@ async function assertBuildOutput() {
     "licenses/npm/@tybys/wasm-util/LICENSE",
     "licenses/npm/codemirror/LICENSE",
     "licenses/npm/codemirror-lang-lilypond/LICENSE",
+    "licenses/npm/pdfkit/LICENSE",
+    "licenses/npm/pdfkit/PREBUNDLED_SOURCE.js",
+    "licenses/npm/pdfkit/PREBUNDLED_THIRD_PARTY_NOTICES.md",
+    "licenses/npm/svg-to-pdfkit/LICENSE",
     "source/README.md",
     "source/REVISION.txt",
     "source/COPYING",
@@ -759,11 +1186,24 @@ async function assertBuildOutput() {
     "source/editor/licenses/csound-browser/LICENSE",
     "source/editor/licenses/csound-browser/THIRD_PARTY.md",
     "source/editor/licenses/npm/README.md",
+    "source/editor/licenses/npm/pdfkit/LICENSE",
+    "source/editor/licenses/npm/pdfkit/package.json",
+    "source/editor/licenses/npm/pdfkit/PREBUNDLED_SOURCE.js",
+    "source/editor/licenses/npm/pdfkit/PREBUNDLED_THIRD_PARTY_NOTICES.md",
+    "source/editor/licenses/npm/pdfkit/prebundled/terms/Apache-2.0.txt",
+    "source/editor/licenses/npm/pdfkit/prebundled/terms/BSD-3-Clause-ieee754.txt",
+    "source/editor/licenses/npm/pdfkit/prebundled/terms/0BSD-tslib.txt",
+    "source/editor/licenses/npm/pdfkit/prebundled/terms/MIT-Inspect-JS.txt",
     "source/editor/licenses/lekton/Lekton-Regular.ttf",
     "source/editor/bun.lock",
     "source/editor/main.ts",
     "source/editor/package.json",
     "source/editor/scripts/build.ts",
+    "licenses/npm/pdfkit/package.json",
+    "licenses/npm/pdfkit/prebundled/terms/Apache-2.0.txt",
+    "licenses/npm/pdfkit/prebundled/terms/BSD-3-Clause-ieee754.txt",
+    "licenses/npm/pdfkit/prebundled/terms/0BSD-tslib.txt",
+    "licenses/npm/pdfkit/prebundled/terms/MIT-Inspect-JS.txt",
   ];
 
   await Promise.all(
@@ -779,6 +1219,7 @@ async function assertBuildOutput() {
     "licenses/npm/README.md",
     "licenses/npm/@hlolli/lilypond-wasm/THIRD_PARTY_NOTICES.md",
     "licenses/npm/@napi-rs/wasm-runtime/PREBUNDLED_THIRD_PARTY_NOTICES.md",
+    "licenses/npm/pdfkit/PREBUNDLED_THIRD_PARTY_NOTICES.md",
     "source/README.md",
     "source/THIRD_PARTY_NOTICES.md",
     "source/editor/EDITOR_SOURCE.md",
@@ -817,6 +1258,7 @@ if (!result.success) {
 }
 
 await assertLazyCsoundChunk(result.metafile);
+await assertLazyPdfChunks(result.metafile);
 
 await buildLilypondRuntimePack();
 

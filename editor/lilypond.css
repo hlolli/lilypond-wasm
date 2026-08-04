@@ -12,6 +12,10 @@
  * hierarchy: one play toggle + stop + native seek · sound: user-initiated only
  * states: empty · preparing · ready · playing · paused · error
  */
+/* Hallmark · component: vector PDF export · genre: modern-minimal · theme: Terminal
+ * hierarchy: preview-local secondary action · output: one vector PDF page per SVG
+ * states: default · hover · focus · active · disabled · loading · error · success
+ */
 @import url("./tokens.css");
 
 html,
@@ -143,6 +147,18 @@ a:visited {
 
 .action-button[hidden] {
   display: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: var(--rule-hair);
+  height: var(--rule-hair);
+  padding: 0;
+  margin: calc(-1 * var(--rule-hair));
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .action-button--primary {
@@ -411,6 +427,8 @@ a:visited {
 .preview-panel {
   grid-template-rows: var(--panel-header) minmax(0, 1fr) auto;
   border-block-start: var(--rule-hair) solid var(--color-rule);
+  container-name: preview-panel;
+  container-type: inline-size;
 }
 
 .panel__header {
@@ -476,6 +494,22 @@ a:visited {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-xs);
+}
+
+.panel__header > .preview-file-action {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.preview-file-action .file-name {
+  max-width: min(10rem, 30cqi);
+}
+
+.export-pdf-button {
+  flex: 0 0 auto;
 }
 
 .editor-file-action .file-name {
@@ -746,6 +780,12 @@ a:visited {
 
   .editor-panel:has(.workspace-editor[data-mode="folder"]) #render-hint,
   .editor-panel:has(.workspace-editor[data-mode="folder"]) .file-name {
+    display: none;
+  }
+}
+
+@container preview-panel (max-width: 24rem) {
+  .preview-file-action .file-name {
     display: none;
   }
 }

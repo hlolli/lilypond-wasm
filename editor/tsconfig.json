@@ -19,6 +19,7 @@
   "include": [
     "*.ts",
     "filesystem/**/*.ts",
+    "pdf/**/*.ts",
     "scripts/**/*.ts",
     "types/**/*.d.ts",
     "workspace/**/*.ts"

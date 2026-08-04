@@ -232,7 +232,27 @@
               <h2 id="preview-heading">Score preview</h2>
               <p id="preview-summary">No render yet</p>
             </div>
-            <p class="file-name" id="output-name">score.svg</p>
+            <div class="preview-file-action">
+              <p class="file-name" id="output-name">score.svg</p>
+              <button
+                class="action-button action-button--secondary export-pdf-button"
+                id="export-pdf"
+                type="button"
+                data-state="idle"
+                aria-describedby="preview-summary"
+                title="Render a score before exporting a PDF"
+                disabled
+              >
+                <span class="export-pdf-button__label">Export PDF</span>
+              </button>
+              <span
+                class="visually-hidden"
+                id="pdf-export-status"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              ></span>
+            </div>
           </header>
           <div class="preview" id="preview">
             <div class="preview__empty" id="preview-empty">

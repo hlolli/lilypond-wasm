@@ -34,6 +34,16 @@ also keeps its [embedded third-party terms](licenses/npm/%40napi-rs/wasm-runtime
 That list covers CodeMirror, Lezer, the LilyPond language mode, the Wasm file
 system helpers, Csound's loaded run time, and their bundled dependencies.
 
+The vector PDF export uses `pdfkit` and `svg-to-pdfkit` under the MIT licence.
+PDFKit publishes its browser build as one prebuilt file, so Bun cannot list
+all code packed inside it. The build keeps the exact published file and its
+embedded notices as
+[`PREBUNDLED_SOURCE.js`](licenses/npm/pdfkit/PREBUNDLED_SOURCE.js), with a
+[prebuilt-code record](licenses/npm/pdfkit/PREBUNDLED_THIRD_PARTY_NOTICES.md).
+The C059, Nimbus Sans, and Nimbus Mono PS fonts come from the LilyPond run time
+and remain covered by the URW Base35 terms in the canonical LilyPond WASM
+licence tree.
+
 ## Lekton
 
 Copyright (c) 2008, 2009, 2010, Accademia di Belle Arti di Urbino.

@@ -25,6 +25,11 @@ The default scratchpad loads `lpcs.ily` and enables its Csound score and
 timeline exports. Play renders the `.sco` file to audio, then follows the
 timeline with a cursor over the tagged notes and rests in the SVG score.
 
+After a successful render, **Export PDF** downloads one vector PDF page for
+each SVG page. The PDF code loads only when it is used and embeds LilyPond’s
+C059, Nimbus Sans, and Nimbus Mono PS text faces, so it does not add work to
+editor start-up.
+
 The interface includes Lekton by the Accademia di Belle Arti di Urbino. The
 font is available under the SIL Open Font License 1.1, whose full text is
 embedded in the font file. The build also copies the Csound and LilyPond

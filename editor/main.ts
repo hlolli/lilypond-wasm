@@ -16,6 +16,11 @@ import {
   type ScorePreviewSurface,
 } from "./audio/score-playhead";
 import { isLilyPondFile } from "./filesystem/file-types";
+import {
+  parseSvgPage,
+  pdfFileName,
+  type RenderedSvgPage,
+} from "./pdf/svg-page";
 import { defaultSource } from "./starter-source";
 import {
   WorkspaceController,
@@ -85,6 +90,11 @@ const preview = requiredElement<HTMLDivElement>("#preview");
 const previewSummary =
   requiredElement<HTMLParagraphElement>("#preview-summary");
 const outputName = requiredElement<HTMLParagraphElement>("#output-name");
+const exportPdfButton = requiredElement<HTMLButtonElement>("#export-pdf");
+const exportPdfLabel =
+  requiredElement<HTMLSpanElement>(".export-pdf-button__label");
+const pdfExportStatus =
+  requiredElement<HTMLSpanElement>("#pdf-export-status");
 const consoleOutput =
   requiredElement<HTMLOListElement>("#console-output");
 const diagnosticCount =
@@ -109,6 +119,10 @@ let audioRenderController: AbortController | null = null;
 let audioRenderSequence = 0;
 let audioScoreSource: CsoundScoreSource | null = null;
 let audioScoreName: string | null = null;
+let renderedSvgPages: RenderedSvgPage[] = [];
+let pdfExporting = false;
+let pdfExportSequence = 0;
+let pdfFeedbackTimer: number | null = null;
 let scoreTransport: AudioTransport;
 let scorePlayhead: ScorePlayhead;
 let audioDisplayOverride: {
@@ -277,7 +291,10 @@ function canRenderCurrentDocument() {
 
 function updateRenderAvailability() {
   if (activeRequestId === null) {
-    renderButton.disabled = !canRenderCurrentDocument();
+    renderButton.disabled = pdfExporting || !canRenderCurrentDocument();
+    renderButton.title = pdfExporting
+      ? "Wait for the PDF export before rendering again"
+      : "Render the current source with Command or Ctrl + Enter";
   }
 }
 
@@ -302,6 +319,57 @@ function setRenderAction(
   } else {
     renderButton.removeAttribute("aria-busy");
   }
+}
+
+function clearPdfFeedbackTimer() {
+  if (pdfFeedbackTimer !== null) {
+    window.clearTimeout(pdfFeedbackTimer);
+    pdfFeedbackTimer = null;
+  }
+}
+
+function setPdfAction(
+  state: "idle" | "loading" | "error" | "success",
+  label: string,
+  disabled: boolean,
+  announcement = state === "idle" ? "" : label,
+) {
+  exportPdfButton.dataset.state = state;
+  exportPdfLabel.textContent = label;
+  exportPdfButton.disabled = disabled;
+  exportPdfButton.title = state === "loading"
+    ? "Building a vector PDF from the rendered score"
+    : state === "error"
+    ? "Retry the PDF export"
+    : renderedSvgPages.length === 0
+    ? "Render a score before exporting a PDF"
+    : activeRequestId !== null
+    ? "Wait for the current render before exporting"
+    : "Download the rendered score as a vector PDF";
+
+  if (state === "loading") {
+    exportPdfButton.setAttribute("aria-busy", "true");
+  } else {
+    exportPdfButton.removeAttribute("aria-busy");
+  }
+  pdfExportStatus.textContent = announcement;
+}
+
+function updatePdfAvailability() {
+  if (pdfExporting) {
+    return;
+  }
+  setPdfAction(
+    "idle",
+    "Export PDF",
+    renderedSvgPages.length === 0 || activeRequestId !== null,
+  );
+}
+
+function clearRenderedSvgPages() {
+  renderedSvgPages = [];
+  clearPdfFeedbackTimer();
+  updatePdfAvailability();
 }
 
 function handleWorkspaceStateChange() {
@@ -617,42 +685,6 @@ async function prepareScoreAudio() {
   }
 }
 
-function parseSvgPage(source: string) {
-  const documentNode = new DOMParser().parseFromString(
-    source,
-    "image/svg+xml",
-  );
-  const parseError = documentNode.querySelector("parsererror");
-
-  if (parseError || documentNode.documentElement.localName !== "svg") {
-    throw new Error("LilyPond returned an unreadable SVG document.");
-  }
-
-  const root = documentNode.documentElement;
-  const normalizedSource = new XMLSerializer().serializeToString(root);
-  const viewBox = root.getAttribute("viewBox")
-    ?.trim()
-    .split(/[\s,]+/)
-    .map(Number);
-  if (
-    viewBox?.length === 4 &&
-    Number.isFinite(viewBox[2]) &&
-    Number.isFinite(viewBox[3]) &&
-    viewBox[2] > 0 &&
-    viewBox[3] > 0
-  ) {
-    return { source: normalizedSource, width: viewBox[2], height: viewBox[3] };
-  }
-
-  const width = Number.parseFloat(root.getAttribute("width") ?? "");
-  const height = Number.parseFloat(root.getAttribute("height") ?? "");
-  return {
-    source: normalizedSource,
-    width: Number.isFinite(width) && width > 0 ? width : 1,
-    height: Number.isFinite(height) && height > 0 ? height : 1,
-  };
-}
-
 function svgFrameDocument(source: string) {
   return [
     "<!doctype html><html><head><meta charset=\"utf-8\">",
@@ -671,7 +703,12 @@ function clearScorePages() {
 }
 
 function showScore(svgs: string[], files: string[]) {
-  const descriptions = svgs.map(parseSvgPage);
+  const descriptions = svgs.map((source, index) =>
+    parseSvgPage(
+      source,
+      files[index] ?? `score${index === 0 ? "" : `-${index + 1}`}.svg`,
+    )
+  );
   const pageRecords = descriptions.map(({ source, width, height }, index) => {
     const page = document.createElement("div");
     page.className = "score-page";
@@ -698,6 +735,9 @@ function showScore(svgs: string[], files: string[]) {
   clearScorePages();
   preview.replaceChildren(...pageRecords.map(({ page }) => page));
   scorePlayhead.setPages(pageRecords.map(({ surface }) => surface));
+  renderedSvgPages = descriptions;
+  clearPdfFeedbackTimer();
+  updatePdfAvailability();
   previewSummary.textContent =
     `${pageRecords.length} ${pageRecords.length === 1 ? "page" : "pages"}`;
   outputName.textContent =
@@ -708,6 +748,7 @@ function showScore(svgs: string[], files: string[]) {
 function showRenderError(message: string) {
   clearScoreAudio();
   clearScorePages();
+  clearRenderedSvgPages();
   const error = document.createElement("p");
   error.className = "preview__error";
   error.textContent =
@@ -769,6 +810,7 @@ function finishRender(
   preview.removeAttribute("aria-busy");
   setRuntimeState(state, label);
   disposeWorker();
+  updatePdfAvailability();
 }
 
 function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
@@ -853,7 +895,11 @@ function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
 }
 
 function renderScore() {
-  if (activeRequestId !== null || !canRenderCurrentDocument()) {
+  if (
+    activeRequestId !== null ||
+    pdfExporting ||
+    !canRenderCurrentDocument()
+  ) {
     return;
   }
 
@@ -864,6 +910,7 @@ function renderScore() {
   const inputLabel = workspaceRenderContext?.displayPath ?? "main.ly";
   requestId += 1;
   activeRequestId = requestId;
+  updatePdfAvailability();
   cancelAudioPreparation(false);
   if (scoreTransport.snapshot.state === "playing") {
     scoreTransport.pause();
@@ -911,6 +958,90 @@ renderButton.addEventListener("click", () => {
   } else {
     cancelRender();
   }
+});
+
+exportPdfButton.addEventListener("click", () => {
+  if (
+    pdfExporting ||
+    activeRequestId !== null ||
+    renderedSvgPages.length === 0
+  ) {
+    return;
+  }
+
+  clearPdfFeedbackTimer();
+  pdfExporting = true;
+  pdfExportSequence += 1;
+  const sequence = pdfExportSequence;
+  const pages = [...renderedSvgPages];
+  const fileName = pdfFileName(pages);
+  cancelAudioPreparation(false);
+  if (scoreTransport.snapshot.state === "playing") {
+    scoreTransport.pause();
+  }
+  updateRenderAvailability();
+  setPdfAction(
+    "loading",
+    "Exporting…",
+    true,
+    `Building ${fileName} from the rendered score.`,
+  );
+
+  void import("./pdf/export-pdf")
+    .then(({ exportSvgPagesToPdf }) =>
+      exportSvgPagesToPdf(pages, fileName)
+    )
+    .then((result) => {
+      if (sequence !== pdfExportSequence) {
+        return;
+      }
+      const size = `${(result.byteLength / 1024).toFixed(0)} KiB`;
+      addDiagnostic(
+        "success",
+        `Exported ${result.fileName} · ${result.pageCount} ` +
+          `${result.pageCount === 1 ? "page" : "pages"} · ${size}`,
+      );
+      if (result.warnings.length > 0) {
+        addDiagnostic(
+          "warning",
+          `PDF export kept the score but reported ${result.warnings.length} ` +
+            `${result.warnings.length === 1 ? "warning" : "warnings"}: ` +
+            result.warnings.join("; "),
+        );
+      }
+      setPdfAction(
+        "success",
+        "Download started",
+        true,
+        `PDF download started for ${result.fileName}.`,
+      );
+      pdfFeedbackTimer = window.setTimeout(() => {
+        pdfFeedbackTimer = null;
+        updatePdfAvailability();
+      }, 2_500);
+    })
+    .catch((error) => {
+      if (sequence !== pdfExportSequence) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      addDiagnostic(
+        "error",
+        `PDF export failed: ${message}`,
+      );
+      setPdfAction(
+        "error",
+        "Retry PDF",
+        renderedSvgPages.length === 0,
+        "PDF export failed. Retry the export.",
+      );
+    })
+    .finally(() => {
+      if (sequence === pdfExportSequence) {
+        pdfExporting = false;
+        updateRenderAvailability();
+      }
+    });
 });
 
 audioPlayPause.addEventListener("click", () => {
@@ -987,6 +1118,8 @@ window.addEventListener("pagehide", (event) => {
     return;
   }
   disposeWorker();
+  pdfExportSequence += 1;
+  clearPdfFeedbackTimer();
   stopAudioPreparation();
   scoreTransport.dispose();
   clearScorePages();
@@ -995,6 +1128,7 @@ window.addEventListener("pagehide", (event) => {
 });
 
 updateDiagnosticCount();
+updatePdfAvailability();
 syncAudioTransport(scoreTransport.snapshot);
 scorePlayhead.sync(scoreTransport.snapshot);
 createWorker();

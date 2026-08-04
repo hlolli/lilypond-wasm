@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Export PDF action states</title>
+    <link rel="stylesheet" href="../lilypond.css">
+    <style>
+      body {
+        min-height: 100svh;
+        display: block;
+        padding: var(--space-lg);
+      }
+
+      .component-preview {
+        display: grid;
+        gap: var(--space-lg);
+      }
+
+      .component-preview > h1 {
+        margin: 0;
+        color: var(--color-ink);
+        font-family: var(--font-display);
+        font-size: var(--text-lg);
+      }
+
+      .component-preview__states {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: var(--space-md);
+      }
+
+      .component-preview__state {
+        min-width: 0;
+        display: grid;
+        align-content: start;
+        gap: var(--space-xs);
+        padding: var(--space-md);
+        border: var(--rule-hair) solid var(--color-rule);
+        background: var(--color-paper-2);
+        color: var(--color-ink-2);
+      }
+
+      .component-preview__state p {
+        margin: 0;
+        color: var(--color-muted);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="component-preview">
+      <h1>Export PDF action states</h1>
+      <div class="component-preview__states">
+        <article class="component-preview__state">
+          <p>Default</p>
+          <button class="action-button action-button--secondary" type="button">Export PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Hover</p>
+          <button class="action-button action-button--secondary is-hover" type="button">Export PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Focus</p>
+          <button class="action-button action-button--secondary is-focus" type="button">Export PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Active</p>
+          <button class="action-button action-button--secondary is-active" type="button">Export PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Disabled</p>
+          <button class="action-button action-button--secondary" type="button" disabled>Export PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Loading</p>
+          <button class="action-button action-button--secondary" type="button" data-state="loading" aria-busy="true" disabled>Exporting…</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Error</p>
+          <button class="action-button action-button--secondary" type="button" data-state="error">Retry PDF</button>
+        </article>
+        <article class="component-preview__state">
+          <p>Success</p>
+          <button class="action-button action-button--secondary" type="button" data-state="success" disabled>Download started</button>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
