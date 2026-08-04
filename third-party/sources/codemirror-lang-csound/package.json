@@ -1,0 +1,76 @@
+{
+  "name": "@hlolli/codemirror-lang-csound",
+  "version": "1.0.0-alpha11",
+  "description": "CodeMirror 6 language support for Csound CSD, ORC, and SCO files",
+  "keywords": [
+    "codemirror",
+    "codemirror6",
+    "csound",
+    "lezer",
+    "music"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "packageManager": "bun@1.3.13",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "generate": "bunx lezer-generator src/csound.grammar -o src/parser",
+    "generate:opcodes": "bun scripts/extract-synopsis.ts",
+    "build": "bun run generate && bun run scripts/build.ts",
+    "dev": "bun run generate && bun ./dev/index.html",
+    "start": "bun run dev",
+    "format": "prettier --write --no-error-on-unmatched-pattern src/index.ts src/highlighter.ts src/parser-utils.ts src/raw-string-tokens.js \"scripts/**/*.ts\" \"test/**/*.ts\" \"dev/**/*.html\" package.json \"tsconfig*.json\"",
+    "format:check": "prettier --check --no-error-on-unmatched-pattern src/index.ts src/highlighter.ts src/parser-utils.ts src/raw-string-tokens.js \"scripts/**/*.ts\" \"test/**/*.ts\" \"dev/**/*.html\" package.json \"tsconfig*.json\"",
+    "prettify": "bun run format",
+    "typecheck": "bun run generate && tsc -p tsconfig.json",
+    "test": "bun run generate && bun test",
+    "test:csound": "bun run generate && bun scripts/scan-csound-tests.ts",
+    "test:watch": "bun run generate && bun test --watch",
+    "check": "bun run format:check && bun run typecheck && bun test",
+    "prepack": "bun run build"
+  },
+  "author": "Hlöðver Sigurðsson",
+  "license": "LGPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hlolli/codemirror-lang-csound.git"
+  },
+  "homepage": "https://github.com/hlolli/codemirror-lang-csound#readme",
+  "bugs": {
+    "url": "https://github.com/hlolli/codemirror-lang-csound/issues"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.7",
+    "@lezer/common": "^1.5.2",
+    "@lezer/highlight": "^1.2.3",
+    "@lezer/lr": "^1.4.10"
+  },
+  "devDependencies": {
+    "@lezer/generator": "^1.8.0",
+    "@types/bun": "1.3.13",
+    "codemirror": "^6.0.2",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3"
+  }
+}

@@ -22,6 +22,19 @@ The player uses `@csound/browser@7.0.0-beta31` under the
 run-time package credits are in the
 [Csound third-party list](licenses/csound-browser/THIRD_PARTY.md).
 
+## Csound CodeMirror mode
+
+Csound source editing uses `@hlolli/codemirror-lang-csound@1.0.0-alpha11`,
+declared under LGPL-2.0. Its npm tarball omits the declared licence file, so
+the build supplies the standard GNU Library GPL version 2 text at
+[`licenses/npm/@hlolli/codemirror-lang-csound/LICENSE`](licenses/npm/%40hlolli/codemirror-lang-csound/LICENSE).
+The package's opcode help text comes from the Public Csound Reference Manual
+under GFDL-1.2-or-later. The [manual notice and full terms](licenses/npm/%40hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING)
+ship beside the package's own third-party notice, which credits the
+MIT-licensed Csound grammar code that it adapts. The source snapshot keeps the
+exact published bundle and the preferred source and build files from its
+pinned tag.
+
 ## Browser package bundle
 
 The production build records every npm package that Bun includes in the
@@ -31,8 +44,9 @@ Two npm tarballs omit their declared MIT text, so the source tree supplies
 that text from upstream source or the package metadata. The published
 `@napi-rs/wasm-runtime` file-system module is itself a prebundle; the build
 also keeps its [embedded third-party terms](licenses/npm/%40napi-rs/wasm-runtime/PREBUNDLED_THIRD_PARTY_NOTICES.md).
-That list covers CodeMirror, Lezer, the LilyPond language mode, the Wasm file
-system helpers, Csound's loaded run time, and their bundled dependencies.
+That list covers CodeMirror, Lezer, the LilyPond and Csound language modes, the
+Wasm file system helpers, Csound's loaded run time, and their bundled
+dependencies.
 
 The vector PDF export uses `pdfkit` and `svg-to-pdfkit` under the MIT licence.
 PDFKit publishes its browser build as one prebuilt file, so Bun cannot list

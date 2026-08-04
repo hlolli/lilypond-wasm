@@ -83,6 +83,10 @@ jobs:
           test -s editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/cbor-x-MIT.txt
           test -s editor/dist/licenses/npm/@tybys/wasm-util/LICENSE
           test -s editor/dist/licenses/npm/codemirror/LICENSE
+          test -s editor/dist/licenses/npm/@hlolli/codemirror-lang-csound/LICENSE
+          test -s editor/dist/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md
+          test -s editor/dist/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING
+          test -s editor/dist/licenses/npm/@hlolli/codemirror-lang-csound/THIRD_PARTY_NOTICES.md
           test -s editor/dist/licenses/npm/codemirror-lang-lilypond/LICENSE
           test -s editor/dist/source/REVISION.txt
           test -s editor/dist/source/LICENSE
@@ -90,10 +94,30 @@ jobs:
           test -s editor/dist/source/flake.lock
           test -s editor/dist/source/nix/patches/gmp-wasi.patch
           test -s editor/dist/source/third-party/licenses/lilypond/COPYING
+          test -s editor/dist/source/third-party/licenses/codemirror-lang-csound/LICENSE
+          test -s editor/dist/source/third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md
+          test -s editor/dist/source/third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_COPYING
+          test -s editor/dist/source/third-party/licenses/csound-manual/COPYING
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/REVISION.txt
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/LICENSE
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/scripts/build.ts
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/src/csound.grammar
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/src/builtin-opcodes.json
+          test -s editor/dist/source/third-party/sources/codemirror-lang-csound/src/builtin-scoregens.json
           test -s editor/dist/source/npm/codemirror-lang-lilypond/src/index.ts
+          test -s editor/dist/source/npm/codemirror-lang-csound/LICENSE
+          test -s editor/dist/source/npm/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md
+          test -s editor/dist/source/npm/codemirror-lang-csound/CSOUND_MANUAL_COPYING
+          test -s editor/dist/source/npm/codemirror-lang-csound/dist/index.js
+          test -s editor/dist/source/npm/codemirror-lang-csound/dist/index.js.map
           test -s editor/dist/source/editor/SOURCE_FILES.md
           test -s editor/dist/source/editor/main.ts
           test -s editor/dist/source/editor/starter-source.ts
+          test -s editor/dist/source/editor/licenses/npm/@hlolli/codemirror-lang-csound/LICENSE
+          test -s editor/dist/source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md
+          test -s editor/dist/source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING
+          grep -Fq 'commit: e43b2ff18e78c4d4358969999e22f5afb4948425' editor/dist/source/third-party/sources/codemirror-lang-csound/REVISION.txt
+          grep -Fq 'GNU Free Documentation License' editor/dist/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING
           grep -Fq 'Copyright (c) Microsoft Corporation.' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/tslib/2.8.1/LICENSE.txt
           grep -Fq 'Copyright Joyent, Inc. and other Node contributors.' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/NODE-JOYENT-MIT.txt
           grep -Fq 'Copyright (c) 2020 Kris Zyp' editor/dist/licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/cbor-x-MIT.txt

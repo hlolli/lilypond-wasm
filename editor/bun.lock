@@ -9,6 +9,7 @@
         "@codemirror/state": "6.7.1",
         "@codemirror/view": "6.43.7",
         "@csound/browser": "7.0.0-beta31",
+        "@hlolli/codemirror-lang-csound": "1.0.0-alpha11",
         "@hlolli/lilypond-wasm": "0.1.0-alpha.4",
         "@lezer/highlight": "1.2.3",
         "@napi-rs/wasm-runtime": "1.1.6",
@@ -48,6 +49,8 @@
     "@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g=="],
+
+    "@hlolli/codemirror-lang-csound": ["@hlolli/codemirror-lang-csound@1.0.0-alpha11", "", { "dependencies": { "@codemirror/autocomplete": "^6.20.3", "@codemirror/language": "^6.12.4", "@codemirror/state": "^6.7.1", "@codemirror/view": "^6.43.7", "@lezer/common": "^1.5.2", "@lezer/highlight": "^1.2.3", "@lezer/lr": "^1.4.10" } }, "sha512-rAxxRgc7sOEQw675Bfdh2N0sai7tImQ3a7J5Tqaux4g3ebRejHHe++YpwtmoHra7mIYC4ZofeUnBJ5eV6Fz15A=="],
 
     "@hlolli/lilypond-wasm": ["@hlolli/lilypond-wasm@0.1.0-alpha.4", "", {}, "sha512-aW3seMRxmgMu3F0HzNaW/KOKn5TKfGWwnLjLoGi+Ae0yfPVaNsL05MIpxNzc301bi0ysFxFsK4PyGhShQHrhHg=="],
 

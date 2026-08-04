@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scratch file tab states</title>
+    <link rel="stylesheet" href="../lilypond.css">
+    <style>
+      body {
+        min-height: 100svh;
+        padding: var(--space-lg);
+        display: grid;
+        grid-template-rows: none;
+        align-content: start;
+        gap: var(--space-md);
+      }
+
+      .state-preview {
+        width: min(100%, 24rem);
+        display: grid;
+        grid-template-columns: minmax(6rem, 1fr) var(--scratch-tabs-width);
+        align-items: center;
+        gap: var(--space-sm);
+      }
+
+      .state-preview > span {
+        color: var(--color-muted);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+      }
+
+      .state-preview .scratch-file-switch {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="state-preview">
+      <span>Default</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab" type="button">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Hover</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab is-hover" type="button">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Focus</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab is-focus" type="button">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Active</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab is-active" type="button">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Disabled</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab" type="button" disabled>lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Loading</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab" type="button" data-state="loading">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Error</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab" type="button" data-state="error">lpcs.orc</button></div>
+    </div>
+    <div class="state-preview">
+      <span>Success</span>
+      <div class="scratch-file-switch"><button class="scratch-file-tab" type="button" data-state="success">lpcs.orc</button></div>
+    </div>
+  </body>
+</html>

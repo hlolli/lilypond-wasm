@@ -5,6 +5,7 @@ import {
   type CsoundCreateOptions,
 } from "./csound-renderer";
 import { PLAYBACK_WAV_FILE } from "./playback-csd";
+import { STARTER_ORCHESTRA } from "../starter-orchestra";
 
 const score =
   "i 17.0001 0 1 1000 1 1 1 60 60 -1 0.7 0.7 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 \"id=1\"\ne";
@@ -94,7 +95,7 @@ describe("renderScoreToWav", () => {
     const messages: string[] = [];
     let createOptions: CsoundCreateOptions | undefined;
 
-    const result = await renderScoreToWav(score, {
+    const result = await renderScoreToWav(score, STARTER_ORCHESTRA, {
       createCsound: async (options) => {
         createOptions = options;
         return fake.asCsound();
@@ -124,7 +125,7 @@ describe("renderScoreToWav", () => {
     const fake = new FakeCsound();
     fake.endRender = false;
     const controller = new AbortController();
-    const rendering = renderScoreToWav(score, {
+    const rendering = renderScoreToWav(score, STARTER_ORCHESTRA, {
       createCsound: async () => fake.asCsound(),
       signal: controller.signal,
     });
@@ -144,7 +145,7 @@ describe("renderScoreToWav", () => {
     fake.endRender = false;
 
     await expect(
-      renderScoreToWav(score, {
+      renderScoreToWav(score, STARTER_ORCHESTRA, {
         createCsound: async () => fake.asCsound(),
         timeoutMs: 10,
       }),
@@ -158,7 +159,7 @@ describe("renderScoreToWav", () => {
     fake.compileResult = -1;
 
     await expect(
-      renderScoreToWav(score, {
+      renderScoreToWav(score, STARTER_ORCHESTRA, {
         createCsound: async () => fake.asCsound(),
       }),
     ).rejects.toThrow("could not compile");
@@ -172,7 +173,7 @@ describe("renderScoreToWav", () => {
     fake.resetGate = new Promise((resolve) => {
       releaseReset = resolve;
     });
-    const rendering = renderScoreToWav(score, {
+    const rendering = renderScoreToWav(score, STARTER_ORCHESTRA, {
       createCsound: async () => fake.asCsound(),
       signal: controller.signal,
     });
@@ -192,7 +193,7 @@ describe("renderScoreToWav", () => {
     const controller = new AbortController();
 
     await expect(
-      renderScoreToWav(score, {
+      renderScoreToWav(score, STARTER_ORCHESTRA, {
         createCsound: (() => {
           throw new Error("factory failed");
         }) as never,
@@ -207,7 +208,7 @@ describe("renderScoreToWav", () => {
     const fake = new FakeCsound();
     const controller = new AbortController();
     let resolveFactory: ((csound: CsoundObj) => void) | undefined;
-    const rendering = renderScoreToWav(score, {
+    const rendering = renderScoreToWav(score, STARTER_ORCHESTRA, {
       createCsound: () =>
         new Promise((resolve) => {
           resolveFactory = resolve;

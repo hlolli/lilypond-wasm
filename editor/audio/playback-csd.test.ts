@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { STARTER_ORCHESTRA } from "../starter-orchestra";
 import { createPlaybackCsd, PLAYBACK_WAV_FILE } from "./playback-csd";
 
 const score = `C 0
@@ -8,8 +9,8 @@ f 0 1
 e`;
 
 describe("createPlaybackCsd", () => {
-  test("wraps an instrument 17 score in the local playback orchestra", () => {
-    const csd = createPlaybackCsd(score);
+  test("wraps an instrument 17 score in the chosen orchestra", () => {
+    const csd = createPlaybackCsd(score, STARTER_ORCHESTRA);
 
     expect(csd).toContain(`-o${PLAYBACK_WAV_FILE}`);
     expect(csd).toContain("instr 17");
@@ -24,23 +25,41 @@ describe("createPlaybackCsd", () => {
   });
 
   test("rejects an empty score", () => {
-    expect(() => createPlaybackCsd(" \n ")).toThrow("score is empty");
+    expect(() => createPlaybackCsd(" \n ", STARTER_ORCHESTRA)).toThrow(
+      "score is empty",
+    );
   });
 
   test("rejects a full CSD document", () => {
     expect(() =>
       createPlaybackCsd(
         "<CsoundSynthesizer><CsScore>i 17 0 1</CsScore></CsoundSynthesizer>",
+        STARTER_ORCHESTRA,
       )
     ).toThrow("not a CSD file");
   });
 
   test("requires the fixed instrument 17 adapter", () => {
-    expect(() => createPlaybackCsd("i 18 0 1\ne")).toThrow(
+    expect(() => createPlaybackCsd("i 18 0 1\ne", STARTER_ORCHESTRA)).toThrow(
       "adapter-instrument to 17",
     );
-    expect(() => createPlaybackCsd("i 170 0 1\ne")).toThrow(
+    expect(() => createPlaybackCsd("i 170 0 1\ne", STARTER_ORCHESTRA)).toThrow(
       "adapter-instrument to 17",
+    );
+  });
+
+  test("requires editable orchestra text with instrument 17", () => {
+    expect(() => createPlaybackCsd(score, " \n ")).toThrow(
+      "orchestra is empty",
+    );
+    expect(() =>
+      createPlaybackCsd(
+        score,
+        "<CsInstruments>instr 17\nendin</CsInstruments>",
+      )
+    ).toThrow("not a CSD file");
+    expect(() => createPlaybackCsd(score, "instr 18\nendin")).toThrow(
+      "define instrument 17",
     );
   });
 });

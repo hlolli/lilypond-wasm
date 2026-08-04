@@ -1,0 +1,10 @@
+repository: https://github.com/hlolli/codemirror-lang-csound
+version: 1.0.0-alpha11
+tag: v1.0.0-alpha11
+commit: e43b2ff18e78c4d4358969999e22f5afb4948425
+
+The source, scripts, tests, docs, and package config come from the clean tagged
+revision above. LICENSE and CSOUND_MANUAL_NOTICE.md fill notice gaps in that
+tag. This copy leaves out .git, node_modules, local files, and generated dist
+files. The editor build keeps the exact published npm files under
+source/npm/codemirror-lang-csound.

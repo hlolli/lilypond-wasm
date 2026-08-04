@@ -3,3 +3,4 @@
 
 # Keep copied license text byte-for-byte identical to its upstream source.
 third-party/licenses/** whitespace=-trailing-space,-space-before-tab
+third-party/sources/**/LICENSE whitespace=-trailing-space,-space-before-tab

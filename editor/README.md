@@ -21,9 +21,18 @@ The editor uses the exact published `@hlolli/lilypond-wasm` version in
 The `npm/` directory at the repository root is a release template and does not
 contain the generated Wasm or run-time files.
 
-The default scratchpad loads `lpcs.ily` and enables its Csound score and
-timeline exports. Play renders the `.sco` file to audio, then follows the
-timeline with a cursor over the tagged notes and rests in the SVG score.
+The default scratchpad has two files. `main.ly` loads `lpcs.ily` and enables
+its Csound score and timeline exports. `lpcs.orc` is the orchestra that plays
+those score events. Its first comment maps LilyPond notes, ties, dynamics, and
+drums to Csound p-fields for users who know LilyPond better than Csound. The
+Csound tab has syntax colour, completion, and opcode help from
+`@hlolli/codemirror-lang-csound`.
+
+Play reads the current `lpcs.orc` edits, renders the `.sco` file to audio, and
+then follows the timeline with a cursor over tagged notes and rests in the SVG
+score. In folder mode, Play first uses unsaved edits from an open root
+`lpcs.orc`. Otherwise it reads that file from disk. If it does not exist, Play
+uses the built-in starter orchestra without writing to the folder.
 
 After a successful render, **Export PDF** downloads one vector PDF page for
 each SVG page. The PDF code loads only when it is used and embeds LilyPond’s

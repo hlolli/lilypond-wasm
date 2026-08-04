@@ -28,6 +28,9 @@ function packageRoot(packageName: string) {
 
 const lilypondPackageRoot = packageRoot("@hlolli/lilypond-wasm");
 const csoundBrowserPackageRoot = packageRoot("@csound/browser");
+const csoundLanguagePackageRoot = packageRoot(
+  "@hlolli/codemirror-lang-csound",
+);
 const lilypondLanguagePackageRoot = packageRoot("codemirror-lang-lilypond");
 const pdfkitPackageRoot = packageRoot("pdfkit");
 const pdfkitStandalonePackages = [
@@ -52,13 +55,43 @@ const pdfkitStandalonePackages = [
   "unicode-properties",
   "unicode-trie",
 ] as const;
+const csoundLanguageFallbackNotices = [
+  "LICENSE",
+  "CSOUND_MANUAL_NOTICE.md",
+  "CSOUND_MANUAL_COPYING",
+];
 const bundledNoticeFallbacks = new Map<string, string[]>([
   [
     "@napi-rs/wasm-runtime",
     ["LICENSE", "PREBUNDLED_THIRD_PARTY_NOTICES.md"],
   ],
   ["@tybys/wasm-util", ["LICENSE"]],
+  ["@hlolli/codemirror-lang-csound", csoundLanguageFallbackNotices],
 ]);
+
+function bundledNoticeFallbackSource(name: string, fileName: string) {
+  if (name === "@hlolli/codemirror-lang-csound") {
+    if (fileName === "LICENSE") {
+      return resolve(
+        repositoryRoot,
+        "third-party/licenses/codemirror-lang-csound/LICENSE",
+      );
+    }
+    if (fileName === "CSOUND_MANUAL_NOTICE.md") {
+      return resolve(
+        repositoryRoot,
+        "third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+      );
+    }
+    if (fileName === "CSOUND_MANUAL_COPYING") {
+      return resolve(
+        repositoryRoot,
+        "third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_COPYING",
+      );
+    }
+  }
+  return resolve(projectRoot, "licenses/npm", name, fileName);
+}
 
 async function treeFiles(
   sourceRoot: string,
@@ -378,6 +411,7 @@ async function copyEditorSource() {
     "flake.lock",
     "flake.nix",
     "nix",
+    "third-party",
   ]);
   const treeState = status === null
     ? "unknown"
@@ -410,9 +444,28 @@ async function copyEditorSource() {
       includeRepositorySource,
     ),
     copyTree(
+      resolve(repositoryRoot, "third-party/sources"),
+      resolve(sourceRoot, "third-party/sources"),
+      includeRepositorySource,
+    ),
+    copyTree(
       lilypondLanguagePackageRoot,
       resolve(sourceRoot, "npm/codemirror-lang-lilypond"),
       includeRepositorySource,
+    ),
+    copyTree(
+      csoundLanguagePackageRoot,
+      resolve(sourceRoot, "npm/codemirror-lang-csound"),
+      includeRepositorySource,
+    ),
+    ...csoundLanguageFallbackNotices.map((fileName) =>
+      copyFile(
+        bundledNoticeFallbackSource(
+          "@hlolli/codemirror-lang-csound",
+          fileName,
+        ),
+        resolve(sourceRoot, "npm/codemirror-lang-csound", fileName),
+      )
     ),
   ]);
 
@@ -450,6 +503,9 @@ async function copyEditorSource() {
     "- [Third-party notices](THIRD_PARTY_NOTICES.md)",
     "- [Copied third-party terms](third-party/licenses)",
     "- [LilyPond CodeMirror mode source](npm/codemirror-lang-lilypond/src/index.ts)",
+    "- [Csound CodeMirror exact npm bundle](npm/codemirror-lang-csound/dist/index.js)",
+    "- [Csound CodeMirror preferred source](third-party/sources/codemirror-lang-csound/src/csound.grammar)",
+    "- [Csound Manual notice and terms](third-party/licenses/csound-manual/COPYING)",
     "- [Pinned inputs](flake.lock) and [build rules](nix)",
     "",
   ].join("\n");
@@ -493,6 +549,26 @@ async function copyEditorSource() {
     Bun.write(
       resolve(editorSourceRoot, "licenses/npm/README.md"),
       "# Bundled npm notices\n\nSee the [built notice index](../../../../licenses/npm/README.md).\n",
+    ),
+    ...csoundLanguageFallbackNotices.map((fileName) =>
+      copyFile(
+        bundledNoticeFallbackSource(
+          "@hlolli/codemirror-lang-csound",
+          fileName,
+        ),
+        resolve(
+          editorSourceRoot,
+          "licenses/npm/@hlolli/codemirror-lang-csound",
+          fileName,
+        ),
+      )
+    ),
+    copyFile(
+      resolve(csoundLanguagePackageRoot, "THIRD_PARTY_NOTICES.md"),
+      resolve(
+        editorSourceRoot,
+        "licenses/npm/@hlolli/codemirror-lang-csound/THIRD_PARTY_NOTICES.md",
+      ),
     ),
     copyFile(
       resolve(csoundBrowserPackageRoot, "LICENSE"),
@@ -848,7 +924,7 @@ async function copyBundledPackageNotices(
       ),
       ...fallbackNoticeFiles.map((fileName) =>
         copyFile(
-          resolve(projectRoot, "licenses/npm", name, fileName),
+          bundledNoticeFallbackSource(name, fileName),
           resolve(destinationRoot, fileName),
         )
       ),
@@ -1162,6 +1238,10 @@ async function assertBuildOutput() {
     "licenses/npm/@napi-rs/wasm-runtime/prebundled/borrowed/cbor-x-MIT.txt",
     "licenses/npm/@tybys/wasm-util/LICENSE",
     "licenses/npm/codemirror/LICENSE",
+    "licenses/npm/@hlolli/codemirror-lang-csound/LICENSE",
+    "licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING",
+    "licenses/npm/@hlolli/codemirror-lang-csound/THIRD_PARTY_NOTICES.md",
     "licenses/npm/codemirror-lang-lilypond/LICENSE",
     "licenses/npm/pdfkit/LICENSE",
     "licenses/npm/pdfkit/PREBUNDLED_SOURCE.js",
@@ -1175,9 +1255,27 @@ async function assertBuildOutput() {
     "source/flake.lock",
     "source/nix/patches/gmp-wasi.patch",
     "source/third-party/licenses/lilypond/COPYING",
+    "source/third-party/licenses/codemirror-lang-csound/LICENSE",
+    "source/third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_COPYING",
+    "source/third-party/licenses/csound-manual/COPYING",
+    "source/third-party/sources/codemirror-lang-csound/REVISION.txt",
+    "source/third-party/sources/codemirror-lang-csound/LICENSE",
+    "source/third-party/sources/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/third-party/sources/codemirror-lang-csound/package.json",
+    "source/third-party/sources/codemirror-lang-csound/scripts/build.ts",
+    "source/third-party/sources/codemirror-lang-csound/src/csound.grammar",
+    "source/third-party/sources/codemirror-lang-csound/src/builtin-opcodes.json",
+    "source/third-party/sources/codemirror-lang-csound/src/builtin-scoregens.json",
     "source/npm/codemirror-lang-lilypond/LICENSE",
     "source/npm/codemirror-lang-lilypond/package.json",
     "source/npm/codemirror-lang-lilypond/src/index.ts",
+    "source/npm/codemirror-lang-csound/LICENSE",
+    "source/npm/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/npm/codemirror-lang-csound/CSOUND_MANUAL_COPYING",
+    "source/npm/codemirror-lang-csound/THIRD_PARTY_NOTICES.md",
+    "source/npm/codemirror-lang-csound/dist/index.js",
+    "source/npm/codemirror-lang-csound/dist/index.js.map",
     "source/editor/SOURCE_FILES.md",
     "source/editor/COPYING",
     "source/editor/LICENSE",
@@ -1186,6 +1284,10 @@ async function assertBuildOutput() {
     "source/editor/licenses/csound-browser/LICENSE",
     "source/editor/licenses/csound-browser/THIRD_PARTY.md",
     "source/editor/licenses/npm/README.md",
+    "source/editor/licenses/npm/@hlolli/codemirror-lang-csound/LICENSE",
+    "source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING",
+    "source/editor/licenses/npm/@hlolli/codemirror-lang-csound/THIRD_PARTY_NOTICES.md",
     "source/editor/licenses/npm/pdfkit/LICENSE",
     "source/editor/licenses/npm/pdfkit/package.json",
     "source/editor/licenses/npm/pdfkit/PREBUNDLED_SOURCE.js",
@@ -1212,6 +1314,49 @@ async function assertBuildOutput() {
     ),
   );
 
+  const csoundLanguageSourceMap = await Bun.file(
+    resolve(
+      outputRoot,
+      "source/npm/codemirror-lang-csound/dist/index.js.map",
+    ),
+  ).json() as { sources?: string[]; sourcesContent?: Array<string | null> };
+  const { sources, sourcesContent } = csoundLanguageSourceMap;
+  if (
+    !sources?.length ||
+    !sourcesContent ||
+    sourcesContent.length !== sources.length ||
+    sourcesContent.some((source) => source === null)
+  ) {
+    throw new Error(
+      "The Csound CodeMirror source map does not contain embedded source entries.",
+    );
+  }
+
+  const csoundLanguageRevision = await Bun.file(
+    resolve(
+      outputRoot,
+      "source/third-party/sources/codemirror-lang-csound/REVISION.txt",
+    ),
+  ).text();
+  const csoundLanguageManifest = await Bun.file(
+    resolve(csoundLanguagePackageRoot, "package.json"),
+  ).json() as PackageManifest;
+  const sourceVersion = csoundLanguageRevision.match(/^version: (.+)$/m)?.[1];
+  if (!sourceVersion || sourceVersion !== csoundLanguageManifest.version) {
+    throw new Error(
+      "The Csound CodeMirror source version does not match the npm package.",
+    );
+  }
+  for (const expected of [
+    "version: 1.0.0-alpha11",
+    "tag: v1.0.0-alpha11",
+    "commit: e43b2ff18e78c4d4358969999e22f5afb4948425",
+  ]) {
+    if (!csoundLanguageRevision.includes(expected)) {
+      throw new Error(`The Csound CodeMirror source pin is missing ${expected}`);
+    }
+  }
+
   await assertMarkdownLinks([
     "EDITOR_SOURCE.md",
     "THIRD_PARTY_NOTICES.md",
@@ -1221,12 +1366,17 @@ async function assertBuildOutput() {
     "licenses/npm/@napi-rs/wasm-runtime/PREBUNDLED_THIRD_PARTY_NOTICES.md",
     "licenses/npm/pdfkit/PREBUNDLED_THIRD_PARTY_NOTICES.md",
     "source/README.md",
+    "licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
     "source/THIRD_PARTY_NOTICES.md",
+    "source/third-party/licenses/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/third-party/sources/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
+    "source/npm/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
     "source/editor/EDITOR_SOURCE.md",
     "source/editor/SOURCE_FILES.md",
     "source/editor/THIRD_PARTY_NOTICES.md",
     "source/editor/licenses/lilypond-wasm/THIRD_PARTY_NOTICES.md",
     "source/editor/licenses/npm/README.md",
+    "source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md",
   ]);
 }
 

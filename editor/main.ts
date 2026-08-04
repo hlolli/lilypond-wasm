@@ -4,6 +4,7 @@ import { keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { lilypond } from "codemirror-lang-lilypond";
+import { csound } from "@hlolli/codemirror-lang-csound";
 import {
   AudioTransport,
   type AudioTransportSnapshot,
@@ -15,13 +16,17 @@ import {
   ScorePlayhead,
   type ScorePreviewSurface,
 } from "./audio/score-playhead";
-import { isLilyPondFile } from "./filesystem/file-types";
+import {
+  csoundFileMode,
+  isLilyPondFile,
+} from "./filesystem/file-types";
 import {
   parseSvgPage,
   pdfFileName,
   type RenderedSvgPage,
 } from "./pdf/svg-page";
 import { defaultSource } from "./starter-source";
+import { STARTER_ORCHESTRA } from "./starter-orchestra";
 import {
   WorkspaceController,
   type WorkspaceRenderContext,
@@ -195,7 +200,7 @@ const editorTheme = EditorView.theme(
   { dark: true },
 );
 
-const lilypondHighlightStyle = HighlightStyle.define([
+const sourceHighlightStyle = HighlightStyle.define([
   {
     tag: [t.keyword, t.meta],
     color: "var(--color-syntax-command)",
@@ -231,6 +236,33 @@ const lilypondHighlightStyle = HighlightStyle.define([
   },
 ]);
 
+function sourceLanguage(fileName: string) {
+  if (isLilyPondFile(fileName)) {
+    return lilypond();
+  }
+  const mode = csoundFileMode(fileName);
+  return mode
+    ? csound({ mode, enableDefaultTheme: false })
+    : [];
+}
+
+function sourceAriaLabel(fileName: string) {
+  if (isLilyPondFile(fileName)) {
+    return "LilyPond source";
+  }
+  const mode = csoundFileMode(fileName);
+  if (mode === "orc") {
+    return "Csound orchestra source";
+  }
+  if (mode === "sco") {
+    return "Csound score source";
+  }
+  if (mode === "csd") {
+    return "Csound CSD source";
+  }
+  return "Text source";
+}
+
 function createEditorState(content: string, fileName: string) {
   return EditorState.create({
     doc: content,
@@ -253,17 +285,21 @@ function createEditorState(content: string, fileName: string) {
       },
     ]),
     basicSetup,
-    isLilyPondFile(fileName) ? lilypond() : [],
-    syntaxHighlighting(lilypondHighlightStyle),
+    sourceLanguage(fileName),
+    syntaxHighlighting(sourceHighlightStyle),
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
-      if (update.docChanged && activeRequestId !== null) {
+      if (
+        update.docChanged &&
+        activeRequestId !== null &&
+        (workspaceController?.editorChangeAffectsRender() ?? true)
+      ) {
         cancelRender("Render cancelled because the source changed.");
       }
       workspaceController?.handleEditorUpdate(update);
     }),
     EditorView.contentAttributes.of({
-      "aria-label": "LilyPond source",
+      "aria-label": sourceAriaLabel(fileName),
       spellcheck: "false",
     }),
     editorTheme,
@@ -548,6 +584,20 @@ function showScoreSourceReady() {
   syncAudioTransport(scoreTransport.snapshot);
 }
 
+function invalidateScoreAudioForOrchestraChange() {
+  stopAudioPreparation();
+  scoreTransport.clear();
+  if (audioScoreSource) {
+    showScoreSourceReady();
+    return;
+  }
+  audioDisplayOverride = {
+    state: "empty",
+    label: "No Csound score",
+  };
+  syncAudioTransport(scoreTransport.snapshot);
+}
+
 function cancelAudioPreparation(reportCancellation = true) {
   if (!audioRenderController) {
     return false;
@@ -637,10 +687,28 @@ async function prepareScoreAudio() {
   };
   syncAudioTransport(scoreTransport.snapshot);
 
-  addDiagnostic("info", `Preparing audio from ${score.name}`);
-
   try {
-    const wave = await renderScoreToWav(score.source, {
+    const orchestra = workspaceController
+      ? await workspaceController.getPlaybackOrchestra()
+      : {
+          source: STARTER_ORCHESTRA,
+          displayPath: "built-in lpcs.orc",
+          fallback: true,
+        };
+    if (sequence !== audioRenderSequence) {
+      return;
+    }
+    addDiagnostic(
+      "info",
+      `Preparing audio from ${score.name} with ${orchestra.displayPath}`,
+    );
+    if (orchestra.fallback) {
+      addDiagnostic(
+        "info",
+        "No root lpcs.orc found; using the built-in orchestra.",
+      );
+    }
+    const wave = await renderScoreToWav(score.source, orchestra.source, {
       signal: controller.signal,
       onMessage: (message) => {
         if (sequence !== audioRenderSequence) {
@@ -906,7 +974,9 @@ function renderScore() {
   const workspaceRenderContext: WorkspaceRenderContext | null =
     workspaceController?.getRenderContext() ?? null;
   const source =
-    workspaceRenderContext?.source ?? editor.state.doc.toString();
+    workspaceRenderContext?.source ??
+    workspaceController?.getScratchpadRenderSource() ??
+    editor.state.doc.toString();
   const inputLabel = workspaceRenderContext?.displayPath ?? "main.ly";
   requestId += 1;
   activeRequestId = requestId;
@@ -1136,8 +1206,10 @@ workspaceController = new WorkspaceController({
   editor,
   createEditorState,
   starterSource: defaultSource,
+  starterOrchestra: STARTER_ORCHESTRA,
   addDiagnostic,
   onStateChange: handleWorkspaceStateChange,
+  onOrchestraChange: invalidateScoreAudioForOrchestraChange,
 });
 void workspaceController.initialize().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);

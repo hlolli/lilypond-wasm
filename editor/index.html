@@ -112,7 +112,36 @@
               </button>
             </div>
             <div class="editor-file-action">
-              <p class="file-name" id="active-file-name">main.ly</p>
+              <div
+                class="scratch-file-switch"
+                id="scratch-file-switch"
+                role="tablist"
+                aria-label="Scratchpad files"
+              >
+                <button
+                  class="scratch-file-tab"
+                  id="scratch-main-file"
+                  type="button"
+                  role="tab"
+                  aria-controls="editor-panel-content"
+                  aria-selected="true"
+                  tabindex="0"
+                >
+                  main.ly
+                </button>
+                <button
+                  class="scratch-file-tab"
+                  id="scratch-orchestra-file"
+                  type="button"
+                  role="tab"
+                  aria-controls="editor-panel-content"
+                  aria-selected="false"
+                  tabindex="-1"
+                >
+                  lpcs.orc
+                </button>
+              </div>
+              <p class="file-name" id="active-file-name" hidden>main.ly</p>
               <button
                 class="action-button action-button--save save-button"
                 id="save-file"

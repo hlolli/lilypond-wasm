@@ -70,6 +70,7 @@
 
   --target-touch: 2.75rem;
   --panel-header: 3.75rem;
+  --scratch-tabs-width: 8.25rem;
   --console-height: clamp(10rem, 24svh, 15rem);
 
   --rule-hair: 1px;

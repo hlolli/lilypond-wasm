@@ -1,0 +1,898 @@
+// Adapted from kunstmusik/codemirror-lang-csound under its declared MIT terms.
+// See THIRD_PARTY_NOTICES.md.
+
+@top CsdFile { CsdPrelude? CsdDocument TrailingContent? }
+@top OrchestraFile { OrcStatements }
+@top ScoreFile { ScoStatements }
+
+@external tokens nestedRawStringTokenizer from "./raw-string-tokens.js" {
+  rawString[@name=RawString]
+}
+
+@skip { space | LineComment | BlockComment | LineContinuation }
+
+@precedence {
+  assignment,
+  comma,
+  newline
+}
+
+kw<term> { @specialize[@name={term}]<identifier, term> }
+
+CsdDocument {
+  CsdOpenTag CsdItem* CsdCloseTag
+}
+
+CsdPrelude { FlatStatement+ }
+
+CsdItem {
+  CsdElement |
+  FlatStatement
+}
+
+CsdElement {
+  LicenseBlock |
+  OptionsBlock |
+  InstrumentsBlock |
+  CsbeatsScoreBlock |
+  ScoreBlock |
+  CabbageBlock
+}
+
+LicenseBlock {
+  CsdLicenseOpen FlatStatement* CsdLicenseClose
+}
+
+OptionsBlock {
+  CsdOptionsOpen FlatStatement* CsdOptionsClose
+}
+
+InstrumentsBlock {
+  CsdInstrumentsOpen OrcStatements CsdInstrumentsClose
+}
+
+ScoreBlock {
+  CsdScoreOpen ScoStatements CsdScoreClose
+}
+
+CsbeatsScoreBlock {
+  CsdScoreOpenCsbeats FlatStatement* CsdScoreClose
+}
+
+CabbageBlock {
+  CsdCabbageOpen FlatStatement* CsdCabbageClose
+}
+
+TrailingContent { FlatStatement+ }
+
+FlatStatement {
+  LooseGenericLine newline |
+  newline
+}
+
+LooseGenericLine { LooseLineToken+ }
+LooseLineToken {
+  LooseKeyword |
+  BooleanLiteral |
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  arrayIdentifier |
+  rawString |
+  globalTypedIdentifier |
+  typedIdentifier |
+  pfield |
+  headerIdentifier |
+  legacyTypeIdentifier |
+  macroUsage |
+  kw<"xin"> |
+  "$" |
+  identifier |
+  number |
+  string |
+  "=" | "+=" | "-=" | "*=" | "/=" | "%=" |
+  "+" | "-" | "*" | "/" | "%" | "^" | "#" |
+  "|" | "&" | "~" | "¬" | "!" | "?" | ":" |
+  "<" | ">" | "<<" | ">>" |
+  "==" | "!=" | "<=" | ">=" |
+  "&&" | "||" |
+  ellipsis |
+  "." | "," | "'" | "\"" |
+  "(" ")" |
+  "(" LooseGenericLine ")" |
+  "[" "]" |
+  "[" LooseGenericLine "]" |
+  "{" | "}"
+}
+
+LooseKeyword {
+  kw<"break"> | kw<"case"> | kw<"continue"> | kw<"declare"> |
+  kw<"default"> | kw<"do"> | kw<"else"> | kw<"elseif"> |
+  kw<"endif"> | kw<"endin"> | kw<"endop"> | kw<"endsw"> |
+  kw<"fi"> | kw<"for"> | kw<"goto"> | kw<"if"> |
+  kw<"igoto"> | kw<"in"> | kw<"instr"> | kw<"ithen"> |
+  kw<"kgoto"> | kw<"kthen"> | kw<"np"> | kw<"od"> |
+  kw<"opcode"> | kw<"pp"> | kw<"reinit"> | kw<"return"> |
+  kw<"rigoto"> | kw<"rireturn"> | kw<"struct"> |
+  kw<"switch"> | kw<"then"> | kw<"until"> | kw<"void"> |
+  kw<"while"> | kw<"xout">
+}
+
+GenericLine { GenericLineToken+ }
+GenericLineToken {
+  BooleanLiteral |
+  globalTypedArrayIdentifier ~functionCall |
+  typedArrayIdentifier ~functionCall |
+  arrayIdentifier |
+  rawString |
+  globalTypedIdentifier ~functionCall |
+  typedIdentifier ~functionCall |
+  pfield |
+  headerIdentifier |
+  legacyTypeIdentifier ~functionCall |
+  macroUsage |
+  kw<"xin"> |
+  kw<"in"> |
+  kw<"do"> |
+  "$" |
+  identifier ~functionCall |
+  number |
+  string |
+  "=" | "+=" | "-=" | "*=" | "/=" | "%=" |
+  "+" | "-" | "*" | "/" | "%" | "^" |
+  "|" | "&" | "~" | "¬" | "!" | "?" | ":" |
+  "<" | ">" | "<<" | ">>" |
+  "==" | "!=" | "<=" | ">=" |
+  "&&" | "||" |
+  ellipsis |
+  "." | "," | "'" |
+  GenericGroup |
+  "[" "]" |
+  "[" GenericLine "]"
+}
+
+GenericGroup {
+  "(" ")" |
+  "(" GenericGroupContent ")"
+}
+
+GenericGroupContent {
+  GenericLine (newline GenericLine?)*
+}
+
+OrcStatements { OrcStatement* }
+
+OrcStatement {
+  InstrumentDefinition |
+  UdoDefinition |
+  DeclareDefinition newline |
+  StructDefinition newline |
+  XoutStatement newline |
+  ControlStatement |
+  GotoStatement newline |
+  LabelStatement LabeledStatementTail? newline |
+  AssignmentStatement newline |
+  ReturnStatement newline |
+  BreakContinueStatement newline |
+  FunctionCallStatement newline |
+  PreprocessorDirective newline |
+  HashLine newline |
+  HashTerminatedGenericLine newline |
+  OrcGenericLine newline |
+  newline
+}
+
+HashLine { "#" }
+
+HashTerminatedGenericLine { GenericLineToken+ "#" }
+
+LabeledStatementTail {
+  XoutStatement |
+  OrcGenericLine
+}
+
+InstrumentDefinition {
+  kw<"instr"> InstrIdList newline OrcStatements kw<"endin">
+}
+
+InstrIdList { InstrId ("," InstrId)* }
+InstrId { PlusInstrId | pfield identifier? | legacyTypeIdentifier | identifier | number }
+PlusInstrId { "+" identifier }
+
+UdoDefinition {
+  LegacyUdo |
+  ModernUdo
+}
+
+UdoName { identifier | legacyTypeIdentifier }
+
+LegacyUdo {
+  kw<"opcode"> UdoName "," UdoArgTypes "," UdoArgTypes newline UdoBody kw<"endop">
+}
+
+ModernUdo {
+  kw<"opcode"> UdoName UdoSignatureGap ModernUdoInputs UdoSignatureGap
+  ":" UdoSignatureGap UdoReturnSpec newline UdoBody kw<"endop">
+}
+
+DeclareDefinition {
+  kw<"declare"> UdoName UdoSignatureGap ModernUdoInputs UdoSignatureGap
+  ":" UdoSignatureGap UdoReturnSpec
+}
+
+UdoSignatureGap { newline* }
+
+ModernUdoInputs {
+  "(" UdoSignatureGap ")" |
+  "(" UdoSignatureGap UdoParamList UdoSignatureGap ")"
+}
+
+UdoParamList {
+  UdoParam ("," UdoSignatureGap UdoParam)*
+}
+
+UdoParam {
+  HeaderPrefixedIdentifier |
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  arrayIdentifier ArraySuffix? |
+  UdoTypeName ArraySuffix?
+}
+
+HeaderPrefixedIdentifier { headerIdentifier identifier }
+
+UdoReturnSpec {
+  kw<"void"> |
+  UdoReturnType |
+  "(" UdoSignatureGap ")" |
+  "(" UdoSignatureGap UdoReturnTypeList UdoSignatureGap ")"
+}
+
+UdoReturnTypeList {
+  UdoReturnType ("," UdoSignatureGap UdoReturnType)*
+}
+
+UdoReturnType {
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  arrayIdentifier ArraySuffix? |
+  UdoTypeName ArraySuffix?
+}
+
+UdoArgTypes { string | UdoArgType+ }
+UdoArgType {
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  arrayIdentifier ArraySuffix? |
+  UdoTypeName ArraySuffix? |
+  number
+}
+UdoTypeName { typedIdentifier | legacyTypeIdentifier | identifier }
+ArraySuffix { ("[" "]")+ }
+UdoBody { OrcStatement* }
+
+StructDefinition {
+  kw<"struct"> identifier StructField ("," StructField)*
+}
+
+StructField {
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  globalTypedIdentifier ArraySuffix? |
+  typedIdentifier ArraySuffix? |
+  HeaderPrefixedIdentifier |
+  legacyTypeIdentifier |
+  identifier
+}
+
+XoutStatement { kw<"xout"> GenericLine? }
+
+PreprocessorDirective {
+  IncludeDirective |
+  DefineDirective |
+  UndefDirective |
+  OrcIfdefDirective
+}
+
+IncludeDirective {
+  hashInclude IncludeFile |
+  hashIncludestr IncludeFile
+}
+
+IncludeFile { string }
+
+DefineDirective {
+  hashDefine DefineName DefineBody?
+}
+
+DefineBody {
+  "#" GenericLineToken* "#" |
+  "#" GenericLine? |
+  DefineBodyLine
+}
+
+DefineBodyLine {
+  DefineBodyStartToken GenericLineToken*
+}
+
+DefineBodyStartToken {
+  BooleanLiteral |
+  globalTypedArrayIdentifier ~functionCall |
+  typedArrayIdentifier ~functionCall |
+  arrayIdentifier |
+  rawString |
+  globalTypedIdentifier ~functionCall |
+  typedIdentifier ~functionCall |
+  pfield |
+  headerIdentifier |
+  legacyTypeIdentifier ~functionCall |
+  macroUsage |
+  kw<"xin"> |
+  kw<"in"> |
+  kw<"do"> |
+  "$" |
+  identifier ~functionCall |
+  number |
+  string |
+  "=" | "+=" | "-=" | "*=" | "/=" | "%=" |
+  "+" | "-" | "*" | "/" | "%" | "^" |
+  "|" | "&" | "~" | "¬" | "!" | "?" | ":" |
+  "<" | ">" | "<<" | ">>" |
+  "==" | "!=" | "<=" | ">=" |
+  "&&" | "||" |
+  ellipsis |
+  "." | "," | "'" | "\"" |
+  "[" "]" |
+  "[" GenericLine "]" |
+  "{" | "}"
+}
+
+DefineName {
+  identifier DefineParamList? |
+  legacyTypeIdentifier DefineParamList? |
+  headerIdentifier DefineParamList?
+}
+
+DefineParamList { "(" DefineParam ("'" DefineParam)* ")" }
+
+DefineParam {
+  kw<"xout"> |
+  kw<"xin"> |
+  kw<"in"> |
+  identifier |
+  legacyTypeIdentifier |
+  headerIdentifier
+}
+
+PreprocessorName { identifier | legacyTypeIdentifier | headerIdentifier }
+
+UndefDirective { hashUndef PreprocessorName }
+
+OrcIfdefDirective {
+  hashIfdef PreprocessorName OrcStatements hashEnd |
+  hashIfdef PreprocessorName OrcStatements hashElse OrcStatements hashEnd |
+  hashIfndef PreprocessorName OrcStatements hashEnd |
+  hashIfndef PreprocessorName OrcStatements hashElse OrcStatements hashEnd
+}
+
+ControlStatement {
+  IfStatement |
+  WhileLoop |
+  UntilLoop |
+  ForLoop |
+  SwitchStatement
+}
+
+IfStatement {
+  kw<"if"> OrcExpr ThenPart
+    OrcStatements
+    ElseIfPart*
+    ElsePart?
+    kw<"endif"> |
+  kw<"if"> OrcExpr ThenPart
+    OrcStatements
+    ElseIfPart*
+    ElsePart?
+    kw<"fi"> |
+  kw<"if"> OrcExpr GotoStatement
+}
+
+ThenPart { kw<"then"> | kw<"ithen"> | kw<"kthen"> | newline }
+
+ElseIfPart { kw<"elseif"> OrcExpr ThenPart OrcStatements }
+
+ElsePart { kw<"else"> OrcStatements }
+
+WhileLoop {
+  kw<"while"> OrcExpr kw<"do"> newline OrcStatements kw<"od">
+}
+
+UntilLoop {
+  kw<"until"> OrcExpr kw<"do"> newline OrcStatements UntilLoopTerminator
+}
+
+UntilLoopTerminator { kw<"od"> | kw<"enduntil"> }
+
+ForLoop {
+  kw<"for"> ForIterator kw<"in"> OrcExpr kw<"do"> newline OrcStatements kw<"od">
+}
+
+ForIterator { ForIteratorName ("," ForIteratorName)* }
+ForIteratorName {
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  globalTypedIdentifier |
+  typedIdentifier |
+  legacyTypeIdentifier |
+  identifier
+}
+
+SwitchStatement {
+  kw<"switch"> OrcExpr newline SwitchBody kw<"endsw">
+}
+
+SwitchBody { newline* CaseBlock* DefaultBlock? }
+CaseBlock { kw<"case"> OrcExprList newline OrcStatements }
+DefaultBlock { kw<"default"> newline OrcStatements }
+
+GotoStatement {
+  kw<"goto"> identifier |
+  kw<"igoto"> identifier |
+  kw<"kgoto"> identifier |
+  kw<"rigoto"> identifier |
+  kw<"reinit"> identifier
+}
+
+LabelStatement {
+  LabelName ":"
+}
+
+LabelName { identifier !assignment | kw<"do"> !assignment }
+
+AssignmentStatement {
+  AssignmentTargetAtom AssignmentOperator OrcExprList
+}
+
+AssignmentTargetAtom {
+  globalTypedArrayIdentifier !assignment |
+  typedArrayIdentifier !assignment |
+  arrayIdentifier !assignment |
+  globalTypedIdentifier !assignment |
+  typedIdentifier !assignment |
+  pfield !assignment |
+  headerIdentifier !assignment |
+  legacyTypeIdentifier !assignment |
+  identifier !assignment
+}
+AssignmentOperator { "=" | "+=" | "-=" | "*=" | "/=" | "%=" }
+
+ReturnStatement {
+  kw<"return"> OrcExprList? |
+  kw<"rireturn">
+}
+
+BreakContinueStatement {
+  kw<"break"> |
+  kw<"continue">
+}
+
+OrcGenericLine {
+  GenericLine
+}
+
+OrcExprGap { newline* }
+
+OrcExpr { OrcConditionalExpr }
+OrcConditionalExpr {
+  OrcOrExpr |
+  OrcOrExpr "?" OrcExprGap OrcExpr ":" OrcExprGap OrcConditionalExpr
+}
+OrcOrExpr { OrcAndExpr | OrcOrExpr "||" OrcExprGap OrcAndExpr }
+OrcAndExpr { OrcBitOrExpr | OrcAndExpr "&&" OrcExprGap OrcBitOrExpr }
+OrcBitOrExpr { OrcBitXorExpr | OrcBitOrExpr "|" OrcExprGap OrcBitXorExpr }
+OrcBitXorExpr { OrcBitAndExpr | OrcBitXorExpr "#" OrcExprGap OrcBitAndExpr }
+OrcBitAndExpr { OrcShiftExpr | OrcBitAndExpr "&" OrcExprGap OrcShiftExpr }
+OrcShiftExpr {
+  OrcCompareExpr |
+  OrcShiftExpr ("<<" | ">>") OrcExprGap OrcCompareExpr
+}
+OrcCompareExpr {
+  OrcAddExpr |
+  OrcCompareExpr ("==" | "!=" | "<=" | ">=" | "=" | "<" | ">") OrcExprGap OrcAddExpr
+}
+OrcAddExpr { OrcMulExpr | OrcAddExpr ("+" | "-") OrcExprGap OrcMulExpr }
+OrcMulExpr { OrcPowExpr | OrcMulExpr ("*" | "/" | "%") OrcExprGap OrcPowExpr }
+OrcPowExpr { OrcUnaryExpr | OrcPowExpr "^" OrcExprGap OrcUnaryExpr }
+OrcUnaryExpr {
+  OrcPrimary |
+  "+" OrcExprGap OrcUnaryExpr |
+  "-" OrcExprGap OrcUnaryExpr |
+  "~" OrcExprGap OrcUnaryExpr |
+  "¬" OrcExprGap OrcUnaryExpr |
+  "!" OrcExprGap OrcUnaryExpr
+}
+OrcPrimary {
+  MemberAccessExpr |
+  FunctionCallExpr |
+  ArrayLiteralExpr |
+  ArrayAccessExpr |
+  MacroUsage |
+  rawString |
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  globalTypedIdentifier |
+  typedIdentifier |
+  pfield |
+  HeaderPrefixedIdentifier |
+  headerIdentifier |
+  legacyTypeIdentifier |
+  number |
+  string |
+  BooleanLiteral |
+  identifier |
+  ParenthesizedExpr
+}
+
+ParenthesizedExpr {
+  "(" OrcExprGap OrcExpr OrcExprGap ")"
+}
+
+OrcExprList { OrcExpr ("," OrcExpr)* }
+
+FunctionCallExpr {
+  FunctionCallee "(" OrcCallExprList? ")"
+}
+
+FunctionCallStatement[@dynamicPrecedence=1] {
+  FunctionCallExpr
+}
+
+FunctionCallee {
+  globalTypedArrayIdentifier ~functionCall |
+  typedArrayIdentifier ~functionCall |
+  globalTypedIdentifier ~functionCall |
+  typedIdentifier ~functionCall |
+  legacyTypeIdentifier ~functionCall |
+  identifier ~functionCall
+}
+
+MemberAccessExpr {
+  MemberAccessRoot MemberAccessSegment+
+}
+
+MemberAccessRoot {
+  FunctionCallExpr |
+  ArrayAccessExpr |
+  globalTypedArrayIdentifier |
+  typedArrayIdentifier |
+  globalTypedIdentifier |
+  typedIdentifier |
+  pfield |
+  HeaderPrefixedIdentifier |
+  headerIdentifier |
+  legacyTypeIdentifier |
+  identifier
+}
+
+MemberAccessSegment { "." identifier ArrayIndex* }
+
+OrcCallExprList {
+  newline* OrcExpr ("," newline* OrcExpr)* ","? newline*
+}
+
+ArrayAccessExpr {
+  ArrayBase ArrayIndex+
+}
+
+ArrayLiteralExpr {
+  "[" ArrayLiteralContent? "]"
+}
+
+ArrayLiteralContent {
+  ArrayRangeExpr |
+  OrcCallExprList
+}
+
+ArrayRangeExpr {
+  OrcExpr ellipsis OrcExpr
+}
+
+ArrayBase {
+  FunctionCallExpr |
+  ArrayLiteralExpr |
+  ParenthesizedExpr |
+  globalTypedArrayIdentifier !assignment |
+  typedArrayIdentifier !assignment |
+  globalTypedIdentifier !assignment |
+  typedIdentifier !assignment |
+  legacyTypeIdentifier !assignment |
+  identifier !assignment
+}
+
+ArrayIndex { "[" ArrayIndexContent "]" }
+ArrayIndexContent {
+  ArraySliceExpr |
+  OrcCallExprList
+}
+ArraySliceExpr {
+  OrcExpr? ":" OrcExpr? ("," OrcExpr)?
+}
+
+MacroUsage {
+  macroUsage |
+  "$" identifier MacroCallArgs?
+}
+
+MacroCallArgs { "(" MacroCallArg ("'" MacroCallArg)* ")" }
+MacroCallArg { number | string | identifier }
+
+BooleanLiteral {
+  kw<"true"> |
+  kw<"false"> |
+  kw<"truek"> |
+  kw<"falsek">
+}
+
+ScoStatements { ScoStatement* }
+
+ScoStatement {
+  ScoreNestableLoop |
+  ScorePreprocessor newline |
+  ScoreStatementLine newline |
+  ScoreContinuationLine newline |
+  newline
+}
+
+ScoreNestableLoop {
+  "{" number (identifier | macroUsage) ScoreLoopBody "}"
+}
+
+ScoreLoopBody { ScoStatements }
+
+ScoreStatementLine {
+  ScoreOpcode ScoreField*
+}
+
+ScoreContinuationLine {
+  number ScoreField*
+}
+
+ScoreOpcode { legacyTypeIdentifier | identifier }
+
+ScoreField { ScoreExpr }
+
+ScoreExpr {
+  ScoreBracketExpr |
+  ScoreSimpleExpr
+}
+
+ScoreSimpleExpr {
+  ScoreFieldAtom |
+  "-" ScoreFieldAtom
+}
+
+ScoreBracketExpr {
+  "[" ScoreOrExpr "]"
+}
+
+ScoreOrExpr { ScoreAndExpr | ScoreOrExpr "||" ScoreAndExpr }
+ScoreAndExpr { ScoreBitOrExpr | ScoreAndExpr "&&" ScoreBitOrExpr }
+ScoreBitOrExpr { ScoreBitAndExpr | ScoreBitOrExpr "|" ScoreBitAndExpr }
+ScoreBitAndExpr { ScoreShiftExpr | ScoreBitAndExpr "&" ScoreShiftExpr }
+ScoreShiftExpr {
+  ScoreCompareExpr |
+  ScoreShiftExpr ("<<" | ">>") ScoreCompareExpr
+}
+ScoreCompareExpr {
+  ScoreAddExpr |
+  ScoreCompareExpr ("==" | "!=" | "<=" | ">=" | "=" | "<" | ">") ScoreAddExpr
+}
+ScoreAddExpr { ScoreMulExpr | ScoreAddExpr ("+" | "-") ScoreMulExpr }
+ScoreMulExpr { ScorePowExpr | ScoreMulExpr ("*" | "/" | "%") ScorePowExpr }
+ScorePowExpr { ScoreUnaryExpr | ScorePowExpr "^" ScoreUnaryExpr }
+ScoreUnaryExpr {
+  ScoreNestedPrimary |
+  "+" ScoreUnaryExpr |
+  "-" ScoreUnaryExpr |
+  "¬" ScoreUnaryExpr |
+  "!" ScoreUnaryExpr
+}
+
+ScoreNestedPrimary {
+  ScoreFunctionCallExpr |
+  ScoreExprAtom |
+  "(" ScoreOrExpr ")"
+}
+
+ScoreFunctionCallExpr {
+  ScoreFunctionCallee "(" ScoreExprList ")" |
+  ScoreFunctionCallee "(" ")"
+}
+
+ScoreFunctionCallee { typedIdentifier | legacyTypeIdentifier | identifier }
+ScoreExprList { ScoreOrExpr ("," ScoreOrExpr)* }
+
+ScoreFieldAtom {
+  ScoreCarry |
+  ScoreRelativeTime |
+  ScoreExprAtom
+}
+
+ScoreExprAtom {
+  ScoreRelativePField |
+  ScoreTilde |
+  ScoreSharpNote |
+  macroUsage |
+  rawString |
+  typedIdentifier |
+  pfield |
+  headerIdentifier |
+  legacyTypeIdentifier |
+  number |
+  string |
+  BooleanLiteral |
+  identifier
+}
+
+ScoreSharpNote { identifier "#" number }
+
+ScoreTilde { "~" }
+
+ScoreRelativePField {
+  ScoreRelativePFieldName "^" number
+}
+
+ScoreRelativePFieldName { kw<"np"> | kw<"pp"> }
+
+ScoreRelativeTime {
+  "^" number |
+  "^" "+" number |
+  "^" "-" number
+}
+
+ScoreCarry { "." | "+" | "<" | ">" | "!" }
+
+ScorePreprocessor {
+  IncludeDirective |
+  DefineDirective |
+  UndefDirective |
+  ScoreIfdefDirective
+}
+
+ScoreIfdefDirective {
+  hashIfdef PreprocessorName ScoStatements hashEnd |
+  hashIfdef PreprocessorName ScoStatements hashElse ScoStatements hashEnd |
+  hashIfndef PreprocessorName ScoStatements hashEnd |
+  hashIfndef PreprocessorName ScoStatements hashElse ScoStatements hashEnd
+}
+
+@tokens {
+  @precedence {
+    BlockComment,
+    LineComment,
+    hashIncludestr,
+    hashInclude,
+    hashDefine,
+    hashIfdef,
+    hashIfndef,
+    hashUndef,
+    hashElse,
+    hashEnd,
+    ellipsis,
+    "¬",
+    globalTypedArrayIdentifier,
+    typedArrayIdentifier,
+    globalTypedIdentifier,
+    arrayIdentifier,
+    typedIdentifier,
+    macroUsage,
+    pfield,
+    legacyTypeIdentifier,
+    headerIdentifier,
+    number,
+    identifier,
+    "$",
+    ".",
+    "/"
+  }
+
+  space { $[ \t]+ }
+  newline { $[\r]?$[\n] }
+
+  LineComment { ";" ![\r\n]* | "//" ![\r\n]* }
+  BlockComment { "/*" blockCommentContent* "*/" }
+  blockCommentContent { ![*] | "*" ![/] }
+
+  LineContinuation {
+    "\\" $[ \t]* (";" ![\r\n]* | "//" ![\r\n]*)? $[\r]?$[\n]
+  }
+
+  ellipsis[@name=Ellipsis] { "..." }
+
+  hashInclude[@name=HashInclude] { "#include" }
+  hashIncludestr[@name=HashIncludestr] { "#includestr" }
+  hashDefine[@name=HashDefine] { "#define" }
+  hashIfdef[@name=HashIfdef] { "#ifdef" }
+  hashIfndef[@name=HashIfndef] { "#ifndef" }
+  hashUndef[@name=HashUndef] { "#undef" }
+  hashElse[@name=HashElse] { "#else" }
+  hashEnd[@name=HashEnd] { "#end" }
+
+  identifierStart { @asciiLetter | $[_\u{a1}-\u{10ffff}] }
+  identifierContinue { identifierStart | @digit }
+  arraySuffixToken { ("[" "]")+ }
+
+  pfield[@name=PField] { "p" @digit+ }
+
+  arrayIdentifier[@name=ArrayIdentifier] {
+    identifierStart identifierContinue* arraySuffixToken
+  }
+
+  headerIdentifier[@name=HeaderIdentifier] {
+    "sr" | "kr" | "ksmps" | "nchnls" | "nchnls_i" | "0dbfs"
+  }
+
+  legacyTypeIdentifier[@name=LegacyTypeIdentifier] {
+    $[akifSwbB] @digit+ identifierContinue* |
+    $[akifSwbB] $[A-Z_] identifierContinue* |
+    "g" $[akifSwbB] @digit+ identifierContinue* |
+    "g" $[akifSwbB] $[A-Z_] identifierContinue*
+  }
+
+  globalTypedArrayIdentifier[@name=GlobalTypedArrayIdentifier] {
+    identifierStart identifierContinue* "@global:"
+    identifierStart identifierContinue* arraySuffixToken
+  }
+
+  typedArrayIdentifier[@name=TypedArrayIdentifier] {
+    identifierStart identifierContinue* ":"
+    identifierStart identifierContinue* arraySuffixToken
+  }
+
+  globalTypedIdentifier[@name=GlobalTypedIdentifier] {
+    identifierStart identifierContinue* "@global:"
+    identifierStart identifierContinue*
+  }
+
+  typedIdentifier[@name=TypedIdentifier] {
+    identifierStart identifierContinue* ":"
+    identifierStart identifierContinue*
+  }
+
+  macroUsage[@name=MacroUsageToken] {
+    "$" identifierStart identifierContinue* macroUsageArgs? "."?
+  }
+  macroUsageArgs { "(" macroUsageArgChar* ")" }
+  macroUsageArgChar { ![)] }
+
+  identifier[@name=Identifier] {
+    identifierStart identifierContinue*
+  }
+
+  string[@name=String] { "\"" stringChar* "\"" }
+  stringChar { ![\\\"\n] | "\\" _ }
+
+  number[@name=Number] {
+    @digit+ "." @digit+ $[eE] $[+\-]? @digit+ |
+    @digit+ "." @digit+ |
+    @digit+ "." |
+    "." @digit+ $[eE] $[+\-]? @digit+ |
+    "." @digit+ |
+    @digit+ $[eE] $[+\-]? @digit+ |
+    @digit+ |
+    "0" $[xX] $[0-9a-fA-F]+
+  }
+
+  CsdOpenTag { "<CsoundSynthesi" $[sz] "er>" }
+  CsdCloseTag { "</CsoundSynthesi" $[sz] "er>" }
+  CsdLicenseOpen { "<CsLicense>" }
+  CsdLicenseClose { "</CsLicense>" }
+  CsdOptionsOpen { "<CsOptions>" }
+  CsdOptionsClose { "</CsOptions>" }
+  CsdInstrumentsOpen { "<CsInstruments>" }
+  CsdScoreOpenCsbeats { "<CsScore" $[ \t]+ "bin=\"csbeats\"" ![>]* ">" }
+  CsdInstrumentsClose { "</CsInstruments>" }
+  CsdScoreOpen { "<CsScore>" }
+  CsdScoreClose { "</CsScore>" }
+  CsdCabbageOpen { "<Cabbage" identifierContinue* ">" }
+  CsdCabbageClose { "</Cabbage" identifierContinue* ">" }
+}

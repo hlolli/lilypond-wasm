@@ -6,6 +6,7 @@ import {
   WorkspaceError,
   WorkspaceHandleStore,
   classifyWorkspaceFile,
+  isCsoundFile,
   isLilyPondFile,
   isWorkspaceError,
   parseWorkspacePath,
@@ -26,6 +27,14 @@ import {
   createTabSessionStore,
   type TabSessionStore,
 } from "./workspace/tab-session-store";
+import {
+  activeScratchpadState,
+  createScratchpadFiles,
+  switchScratchpadFile,
+  updateActiveScratchpadState,
+  type ScratchpadFileName,
+  type ScratchpadFiles,
+} from "./workspace/scratchpad-files";
 import {
   applySaveResult,
   closeFile,
@@ -66,12 +75,20 @@ export type WorkspaceRenderContext = {
   }>;
 };
 
+export type PlaybackOrchestraSource = {
+  source: string;
+  displayPath: string;
+  fallback: boolean;
+};
+
 type WorkspaceControllerOptions = {
   editor: EditorView;
   createEditorState: (content: string, fileName: string) => EditorState;
   starterSource: string;
+  starterOrchestra: string;
   addDiagnostic: (level: DiagnosticLevel, message: string) => void;
   onStateChange: () => void;
+  onOrchestraChange: () => void;
 };
 
 function requiredElement<T extends Element>(selector: string): T {
@@ -105,8 +122,10 @@ export class WorkspaceController {
   private readonly editor: EditorView;
   private readonly createEditorState: WorkspaceControllerOptions["createEditorState"];
   private readonly starterSource: string;
+  private readonly starterOrchestra: string;
   private readonly addDiagnostic: WorkspaceControllerOptions["addDiagnostic"];
   private readonly onStateChange: WorkspaceControllerOptions["onStateChange"];
+  private readonly onOrchestraChange: WorkspaceControllerOptions["onOrchestraChange"];
 
   private readonly database = new WorkspaceDatabase();
   private readonly repository = new FileSystemWorkspace({
@@ -163,6 +182,12 @@ export class WorkspaceController {
     requiredElement<HTMLDivElement>("#editor");
   private readonly activeFileName =
     requiredElement<HTMLParagraphElement>("#active-file-name");
+  private readonly scratchFileSwitch =
+    requiredElement<HTMLDivElement>("#scratch-file-switch");
+  private readonly scratchMainFile =
+    requiredElement<HTMLButtonElement>("#scratch-main-file");
+  private readonly scratchOrchestraFile =
+    requiredElement<HTMLButtonElement>("#scratch-orchestra-file");
   private readonly saveButton =
     requiredElement<HTMLButtonElement>("#save-file");
   private readonly sourceHeading =
@@ -194,7 +219,7 @@ export class WorkspaceController {
   private workspaceView: WorkspaceView = "editor";
   private state: WorkspaceState = createWorkspaceState();
   private descriptor: WorkspaceDescriptor | null = null;
-  private scratchpadState: EditorState;
+  private scratchpadFiles: ScratchpadFiles<EditorState>;
   private displayedFileId: string | null = null;
   private readonly editorStates = new Map<string, EditorState>();
   private readonly directoryCache = new Map<string, DirectorySnapshot>();
@@ -222,9 +247,14 @@ export class WorkspaceController {
     this.editor = options.editor;
     this.createEditorState = options.createEditorState;
     this.starterSource = options.starterSource;
+    this.starterOrchestra = options.starterOrchestra;
     this.addDiagnostic = options.addDiagnostic;
     this.onStateChange = options.onStateChange;
-    this.scratchpadState = this.editor.state;
+    this.onOrchestraChange = options.onOrchestraChange;
+    this.scratchpadFiles = createScratchpadFiles(
+      this.editor.state,
+      this.createEditorState(this.starterOrchestra, "lpcs.orc"),
+    );
 
     const stateDatabase = this.database as unknown as StateDatabase;
     this.sessions = createTabSessionStore(stateDatabase);
@@ -253,6 +283,18 @@ export class WorkspaceController {
       "keydown",
       this.handleWorkspaceViewKeydown,
     );
+    this.scratchMainFile.addEventListener(
+      "click",
+      this.handleScratchMainFile,
+    );
+    this.scratchOrchestraFile.addEventListener(
+      "click",
+      this.handleScratchOrchestraFile,
+    );
+    this.scratchFileSwitch.addEventListener(
+      "keydown",
+      this.handleScratchFileKeydown,
+    );
     this.browseFilesButton.addEventListener(
       "click",
       this.handleBrowseFiles,
@@ -279,6 +321,7 @@ export class WorkspaceController {
       "visibilitychange",
       this.handleVisibilityChange,
     );
+    this.syncScratchpadHeader();
   }
 
   async initialize() {
@@ -340,11 +383,22 @@ export class WorkspaceController {
   }
 
   handleEditorUpdate(update: ViewUpdate) {
-    if (
-      this.mode !== "folder" ||
-      !update.docChanged ||
-      !this.state.activeFileId
-    ) {
+    if (!update.docChanged) {
+      return;
+    }
+
+    if (this.mode === "scratchpad") {
+      this.scratchpadFiles = updateActiveScratchpadState(
+        this.scratchpadFiles,
+        update.state,
+      );
+      if (this.scratchpadFiles.activeFileName === "lpcs.orc") {
+        this.onOrchestraChange();
+      }
+      return;
+    }
+
+    if (!this.state.activeFileId) {
       return;
     }
 
@@ -361,6 +415,10 @@ export class WorkspaceController {
     this.scheduleDraft(fileId);
     this.renderTabs();
     this.syncHeader();
+    const file = this.state.files.find((candidate) => candidate.id === fileId);
+    if (file && this.isPlaybackOrchestraFile(file)) {
+      this.onOrchestraChange();
+    }
     this.onStateChange();
   }
 
@@ -392,6 +450,18 @@ export class WorkspaceController {
     return file !== null && file.name.toLocaleLowerCase("en-US").endsWith(".ly");
   }
 
+  editorChangeAffectsRender() {
+    if (this.mode === "scratchpad") {
+      return this.scratchpadFiles.activeFileName === "main.ly";
+    }
+    const file = getActiveFile(this.state);
+    return file !== null && isLilyPondFile(file.name);
+  }
+
+  getScratchpadRenderSource() {
+    return this.scratchpadFiles.states["main.ly"].doc.toString();
+  }
+
   getRenderContext(): WorkspaceRenderContext | null {
     if (this.mode !== "folder" || !this.descriptor) {
       return null;
@@ -410,6 +480,55 @@ export class WorkspaceController {
         content: openFile.content,
       })),
     };
+  }
+
+  async getPlaybackOrchestra(): Promise<PlaybackOrchestraSource> {
+    if (this.mode === "scratchpad") {
+      const state = this.scratchpadFiles.activeFileName === "lpcs.orc"
+        ? this.editor.state
+        : this.scratchpadFiles.states["lpcs.orc"];
+      return {
+        source: state.doc.toString(),
+        displayPath: "lpcs.orc",
+        fallback: false,
+      };
+    }
+
+    const openFile = this.state.files.find((file) =>
+      this.isPlaybackOrchestraFile(file)
+    );
+    if (openFile?.dirty) {
+      return {
+        source: openFile.content,
+        displayPath: openFile.path,
+        fallback: false,
+      };
+    }
+
+    const generation = this.workspaceGeneration;
+    try {
+      const result = await this.repository.readTextFile(["lpcs.orc"]);
+      if (
+        this.mode !== "folder" ||
+        generation !== this.workspaceGeneration
+      ) {
+        throw new Error("The folder changed while reading lpcs.orc.");
+      }
+      return {
+        source: result.content,
+        displayPath: pathToDisplay(result.path),
+        fallback: false,
+      };
+    } catch (error) {
+      if (isWorkspaceError(error, "entry-not-found")) {
+        return {
+          source: this.starterOrchestra,
+          displayPath: "built-in lpcs.orc",
+          fallback: true,
+        };
+      }
+      throw error;
+    }
   }
 
   hasUnsavedChanges() {
@@ -446,6 +565,18 @@ export class WorkspaceController {
     this.workspaceViewTabs.removeEventListener(
       "keydown",
       this.handleWorkspaceViewKeydown,
+    );
+    this.scratchMainFile.removeEventListener(
+      "click",
+      this.handleScratchMainFile,
+    );
+    this.scratchOrchestraFile.removeEventListener(
+      "click",
+      this.handleScratchOrchestraFile,
+    );
+    this.scratchFileSwitch.removeEventListener(
+      "keydown",
+      this.handleScratchFileKeydown,
     );
     this.browseFilesButton.removeEventListener(
       "click",
@@ -576,6 +707,39 @@ export class WorkspaceController {
       this.latestOpenFileId = null;
     }
     this.setWorkspaceView(nextView, true);
+  };
+
+  private readonly handleScratchMainFile = () => {
+    this.activateScratchpadFile("main.ly");
+  };
+
+  private readonly handleScratchOrchestraFile = () => {
+    this.activateScratchpadFile("lpcs.orc");
+  };
+
+  private readonly handleScratchFileKeydown = (event: KeyboardEvent) => {
+    if (
+      this.mode !== "scratchpad" ||
+      (event.target !== this.scratchMainFile &&
+        event.target !== this.scratchOrchestraFile)
+    ) {
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    const fileName: ScratchpadFileName = event.key === "Home"
+      ? "main.ly"
+      : event.key === "End"
+        ? "lpcs.orc"
+        : event.target === this.scratchMainFile
+          ? "lpcs.orc"
+          : "main.ly";
+    this.activateScratchpadFile(fileName);
+    (fileName === "main.ly"
+      ? this.scratchMainFile
+      : this.scratchOrchestraFile).focus();
   };
 
   private readonly handleMainFileAction = () => {
@@ -940,7 +1104,10 @@ export class WorkspaceController {
   private async enterWorkspace(workspace: WorkspaceDescriptor) {
     const generation = ++this.workspaceGeneration;
     if (this.mode === "scratchpad") {
-      this.scratchpadState = this.editor.state;
+      this.scratchpadFiles = updateActiveScratchpadState(
+        this.scratchpadFiles,
+        this.editor.state,
+      );
     }
 
     this.mode = "folder";
@@ -958,6 +1125,8 @@ export class WorkspaceController {
     );
 
     this.workspaceEditor.dataset.mode = "folder";
+    this.scratchFileSwitch.hidden = true;
+    this.activeFileName.hidden = false;
     this.workspaceViewTabs.hidden = false;
     this.workspaceEditorView.setAttribute("role", "tabpanel");
     this.workspaceEditorView.setAttribute(
@@ -978,6 +1147,7 @@ export class WorkspaceController {
     this.setFolderAction("open", "Loading folder…", "loading");
     this.showNotice("", "info");
     this.renderInterface();
+    this.onOrchestraChange();
 
     try {
       await Promise.all([
@@ -1017,6 +1187,8 @@ export class WorkspaceController {
     this.directoryCache.clear();
     this.expandedDirectories.clear();
     this.workspaceEditor.dataset.mode = "scratchpad";
+    this.scratchFileSwitch.hidden = false;
+    this.activeFileName.hidden = true;
     this.workspaceView = "editor";
     this.workspaceViewTabs.hidden = true;
     this.workspaceEditorView.hidden = false;
@@ -1047,12 +1219,58 @@ export class WorkspaceController {
     this.editorEmpty.hidden = true;
     this.editorHost.inert = false;
     this.editorHost.removeAttribute("aria-hidden");
-    this.activeFileName.textContent = "main.ly";
-    this.sourceHeading.textContent = "LilyPond source";
-    this.renderHint.innerHTML =
-      "Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>";
-    this.editor.setState(this.scratchpadState);
+    this.editor.setState(activeScratchpadState(this.scratchpadFiles));
+    this.syncScratchpadHeader();
+    this.onOrchestraChange();
     this.onStateChange();
+  }
+
+  private activateScratchpadFile(fileName: ScratchpadFileName) {
+    if (this.mode !== "scratchpad") {
+      return;
+    }
+    this.scratchpadFiles = updateActiveScratchpadState(
+      this.scratchpadFiles,
+      this.editor.state,
+    );
+    const nextFiles = switchScratchpadFile(this.scratchpadFiles, fileName);
+    if (nextFiles === this.scratchpadFiles) {
+      return;
+    }
+    this.scratchpadFiles = nextFiles;
+    this.editor.setState(activeScratchpadState(this.scratchpadFiles));
+    this.syncScratchpadHeader();
+  }
+
+  private syncScratchpadHeader() {
+    if (this.mode !== "scratchpad") {
+      return;
+    }
+    const activeFileName = this.scratchpadFiles.activeFileName;
+    const mainActive = activeFileName === "main.ly";
+    this.scratchFileSwitch.hidden = false;
+    this.activeFileName.hidden = true;
+    this.scratchMainFile.setAttribute("aria-selected", String(mainActive));
+    this.scratchMainFile.tabIndex = mainActive ? 0 : -1;
+    this.scratchOrchestraFile.setAttribute(
+      "aria-selected",
+      String(!mainActive),
+    );
+    this.scratchOrchestraFile.tabIndex = mainActive ? -1 : 0;
+    this.editorStage.setAttribute(
+      "aria-labelledby",
+      mainActive ? this.scratchMainFile.id : this.scratchOrchestraFile.id,
+    );
+    this.sourceHeading.textContent = mainActive
+      ? "LilyPond source"
+      : "Csound orchestra";
+    if (mainActive) {
+      this.renderHint.innerHTML =
+        "Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>";
+    } else {
+      this.renderHint.textContent =
+        "Play uses current edits · Render still uses main.ly";
+    }
   }
 
   private setWorkspaceView(
@@ -1275,6 +1493,9 @@ export class WorkspaceController {
       }
       this.persistSession();
       this.addDiagnostic("info", `Opened ${file.path}`);
+      if (this.isPlaybackOrchestraFile(file)) {
+        this.onOrchestraChange();
+      }
     } catch (error) {
       this.reportError(error);
     } finally {
@@ -1429,7 +1650,7 @@ export class WorkspaceController {
     const fileType = classifyWorkspaceFile(path.at(-1)!);
     if (!fileType.editable) {
       this.setNewFileError(
-        "Use a text extension such as .ly, .ily, .txt, .md, or .json.",
+        "Use a text extension such as .ly, .ily, .orc, .txt, or .md.",
       );
       return null;
     }
@@ -1465,6 +1686,12 @@ export class WorkspaceController {
       (entry): entry is Extract<WorkspaceEntry, { kind: "file" }> =>
         entry.kind === "file" && entry.name === "main.ly",
     ) ?? null;
+  }
+
+  private isPlaybackOrchestraFile(
+    file: Pick<OpenFile, "name" | "pathSegments">,
+  ) {
+    return file.pathSegments.length === 1 && file.name === "lpcs.orc";
   }
 
   private syncCreationControls() {
@@ -1517,6 +1744,9 @@ export class WorkspaceController {
     }
 
     this.state = result.state;
+    if (this.isPlaybackOrchestraFile(result.file)) {
+      this.onOrchestraChange();
+    }
     if (this.saveErrorFileId === fileId) {
       this.saveErrorFileId = null;
     }
@@ -1609,6 +1839,9 @@ export class WorkspaceController {
             if (this.state.activeFileId === file.id) {
               this.editor.setState(nextState);
               this.displayedFileId = file.id;
+            }
+            if (this.isPlaybackOrchestraFile(reloaded)) {
+              this.onOrchestraChange();
             }
           }
           let draftDiscardError: unknown = null;
@@ -1958,6 +2191,11 @@ export class WorkspaceController {
         file.name.toLocaleLowerCase("en-US").endsWith(".ly")
         ? "Render current edits · Save writes to disk"
         : "Save writes to disk · Included files are not rendered alone";
+    } else if (isCsoundFile(file.name)) {
+      this.sourceHeading.textContent = "Csound source";
+      this.renderHint.textContent = this.isPlaybackOrchestraFile(file)
+        ? "Play uses current edits · Save writes to disk"
+        : "Save writes to disk · Play uses root lpcs.orc";
     } else {
       this.sourceHeading.textContent = "Text source";
       this.renderHint.textContent =

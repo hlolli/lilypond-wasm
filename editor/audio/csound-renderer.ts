@@ -86,9 +86,10 @@ function assertWaveFile(bytes: Uint8Array) {
 
 export async function renderScoreToWav(
   score: string,
+  orchestra: string,
   options: RenderScoreOptions = {},
 ) {
-  const csd = createPlaybackCsd(score);
+  const csd = createPlaybackCsd(score, orchestra);
   const timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new TypeError("timeoutMs must be a positive, finite number.");

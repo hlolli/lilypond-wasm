@@ -18,6 +18,7 @@ export const EDITABLE_TEXT_EXTENSIONS = [
 
 export type EditableTextExtension =
   (typeof EDITABLE_TEXT_EXTENSIONS)[number];
+export type CsoundFileMode = "csd" | "orc" | "sco";
 
 export type WorkspaceFileType =
   | {
@@ -31,6 +32,11 @@ export type WorkspaceFileType =
       extension: EditableTextExtension;
     }
   | {
+      kind: "csound";
+      editable: true;
+      extension: ".csd" | ".orc" | ".sco";
+    }
+  | {
       kind: "unsupported";
       editable: false;
       extension: string | null;
@@ -38,6 +44,7 @@ export type WorkspaceFileType =
 
 const editableExtensions = new Set<string>(EDITABLE_TEXT_EXTENSIONS);
 const lilypondExtensions = new Set<string>([".ly", ".ily"]);
+const csoundExtensions = new Set<string>([".csd", ".orc", ".sco"]);
 
 export function fileExtension(name: string): string | null {
   const finalDot = name.lastIndexOf(".");
@@ -57,12 +64,33 @@ export function isLilyPondFile(name: string): boolean {
   return extension !== null && lilypondExtensions.has(extension);
 }
 
+export function csoundFileMode(name: string): CsoundFileMode | null {
+  const extension = fileExtension(name);
+  if (extension === ".csd" || extension === ".orc" || extension === ".sco") {
+    return extension.slice(1) as CsoundFileMode;
+  }
+  return null;
+}
+
+export function isCsoundFile(name: string): boolean {
+  const extension = fileExtension(name);
+  return extension !== null && csoundExtensions.has(extension);
+}
+
 export function classifyWorkspaceFile(name: string): WorkspaceFileType {
   const extension = fileExtension(name);
 
   if (extension === ".ly" || extension === ".ily") {
     return {
       kind: "lilypond",
+      editable: true,
+      extension,
+    };
+  }
+
+  if (extension === ".csd" || extension === ".orc" || extension === ".sco") {
+    return {
+      kind: "csound",
       editable: true,
       extension,
     };

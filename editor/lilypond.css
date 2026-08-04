@@ -1,5 +1,5 @@
 /* Hallmark · genre: modern-minimal · macrostructure: Workbench (split=30/70, console=bottom, frame=plain) · theme: Terminal · tone: technical-austere · anchor: signal-green 138deg · enrichment: none · N9 knobs: cta=outlined, wordmark=monospace, padding=tight · C1 knobs: shape=rectangular, density=compact, adornment=none · Ft4 knobs: family=monospace, layout=log-style, includes=runtime+licence · nav: N9 · footer: Ft4 · contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57) */
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
 /* Hallmark · component: action system · genre: modern-minimal · theme: Terminal
  * states: default · hover · focus · active · disabled · loading · error · success
  * contrast: pass (40–41)
@@ -7,6 +7,10 @@
 /* Hallmark · component: workspace switcher + new-file flow · genre: modern-minimal · theme: Terminal
  * hierarchy: header-integrated Editor/Files tabs · empty state: one primary action · dialog: labelled path field
  * keyboard: tablist arrows/Home/End · touch targets: 44px minimum
+ */
+/* Hallmark · component: scratch file tabs · genre: modern-minimal · theme: Terminal
+ * hierarchy: main.ly primary · lpcs.orc quiet peer · placement: existing panel header
+ * states: default · hover · focus · active · disabled · loading · error · success
  */
 /* Hallmark · component: score transport · genre: modern-minimal · theme: Terminal
  * hierarchy: one play toggle + stop + native seek · sound: user-initiated only
@@ -496,6 +500,85 @@ a:visited {
   gap: var(--space-xs);
 }
 
+.scratch-file-switch {
+  width: var(--scratch-tabs-width);
+  min-width: var(--scratch-tabs-width);
+  min-height: var(--target-touch);
+  flex: 0 0 var(--scratch-tabs-width);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: var(--rule-hair) solid var(--color-rule);
+  background: var(--color-paper-2);
+}
+
+.scratch-file-switch[hidden],
+.file-name[hidden] {
+  display: none;
+}
+
+.scratch-file-tab {
+  min-width: 0;
+  min-height: var(--target-touch);
+  padding: var(--space-xs);
+  border: 0;
+  border-inline-end: var(--rule-hair) solid var(--color-rule);
+  background: var(--color-clear);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scratch-file-tab:last-child {
+  border-inline-end: 0;
+}
+
+.scratch-file-tab[aria-selected="true"] {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+  box-shadow: inset 0 var(--rule-focus) 0 var(--color-accent);
+}
+
+.scratch-file-tab.is-hover {
+  color: var(--color-accent);
+}
+
+.scratch-file-tab:focus-visible,
+.scratch-file-tab.is-focus {
+  outline: var(--rule-focus) solid var(--color-focus);
+  outline-offset: var(--offset-focus-inset);
+}
+
+.scratch-file-tab:active:not(:disabled),
+.scratch-file-tab.is-active {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+}
+
+.scratch-file-tab:disabled {
+  background: var(--color-paper-3);
+  color: var(--color-muted);
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.scratch-file-tab[data-state="loading"] {
+  color: var(--color-warning);
+  cursor: progress;
+}
+
+.scratch-file-tab[data-state="error"] {
+  color: var(--color-error);
+}
+
+.scratch-file-tab[data-state="success"] {
+  color: var(--color-accent);
+}
+
 .panel__header > .preview-file-action {
   min-width: 0;
   display: flex;
@@ -781,6 +864,29 @@ a:visited {
   .editor-panel:has(.workspace-editor[data-mode="folder"]) #render-hint,
   .editor-panel:has(.workspace-editor[data-mode="folder"]) .file-name {
     display: none;
+  }
+}
+
+@container editor-panel (max-width: 20rem) {
+  .editor-panel:has(.workspace-editor[data-mode="scratchpad"])
+    > .panel__header {
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    padding-inline: var(--space-xs);
+  }
+
+  .editor-panel:has(.workspace-editor[data-mode="scratchpad"])
+    > .panel__header
+    > :first-child {
+    position: absolute;
+    width: var(--rule-hair);
+    height: var(--rule-hair);
+    margin: calc(-1 * var(--rule-hair));
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -1467,7 +1573,8 @@ a:visited {
   .console__clear:hover,
   .tree-file:hover,
   .editor-tab button:hover,
-  .workspace-view-tab:hover {
+  .workspace-view-tab:hover,
+  .scratch-file-tab:hover {
     color: var(--color-accent);
   }
 
@@ -1520,6 +1627,7 @@ a:visited {
   .tree-file,
   .editor-tab button,
   .workspace-view-tab,
+  .scratch-file-tab,
   .new-file-dialog input {
     min-height: 3rem;
   }

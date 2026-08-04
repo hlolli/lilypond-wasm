@@ -80,6 +80,12 @@ LilyPond CodeMirror mode, and the Wasm file-system helpers listed in
 [`editor/package.json`](editor/package.json). It also serves Lekton under the
 SIL Open Font License 1.1.
 
+It also bundles `@hlolli/codemirror-lang-csound@1.0.0-alpha11` under
+LGPL-2.0. Its [pinned preferred source](third-party/sources/codemirror-lang-csound)
+includes opcode help text from the Public Csound Reference Manual. That text
+uses GFDL-1.2-or-later; the [authors' notice and full terms](third-party/licenses/csound-manual/COPYING)
+ship with this source.
+
 The editor build reads Bun's bundle metadata and copies the package metadata
 and top-level licence and notice files for each included npm package. For two
 packages whose tarballs omit their declared MIT text, the source tree supplies
