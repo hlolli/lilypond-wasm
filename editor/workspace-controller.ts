@@ -81,6 +81,14 @@ export type PlaybackOrchestraSource = {
   fallback: boolean;
 };
 
+export type LilyPondDocument = {
+  source: string;
+  displayPath: string;
+  mode: "scratchpad" | "folder";
+  workspaceId: string | null;
+  dirty: boolean;
+};
+
 type WorkspaceControllerOptions = {
   editor: EditorView;
   createEditorState: (content: string, fileName: string) => EditorState;
@@ -395,6 +403,7 @@ export class WorkspaceController {
       if (this.scratchpadFiles.activeFileName === "lpcs.orc") {
         this.onOrchestraChange();
       }
+      this.onStateChange();
       return;
     }
 
@@ -460,6 +469,75 @@ export class WorkspaceController {
 
   getScratchpadRenderSource() {
     return this.scratchpadFiles.states["main.ly"].doc.toString();
+  }
+
+  getLilyPondDocument(): LilyPondDocument | null {
+    if (this.mode === "scratchpad") {
+      const state = this.scratchpadFiles.activeFileName === "main.ly"
+        ? this.editor.state
+        : this.scratchpadFiles.states["main.ly"];
+      return {
+        source: state.doc.toString(),
+        displayPath: "main.ly",
+        mode: "scratchpad",
+        workspaceId: null,
+        dirty: false,
+      };
+    }
+
+    const file = getActiveFile(this.state);
+    if (!file || !isLilyPondFile(file.name)) {
+      return null;
+    }
+    return {
+      source: file.content,
+      displayPath: file.path,
+      mode: "folder",
+      workspaceId: this.state.workspaceId,
+      dirty: file.dirty,
+    };
+  }
+
+  replaceLilyPondSource(source: string): LilyPondDocument | null {
+    const document = this.getLilyPondDocument();
+    if (!document || document.source === source) {
+      return document;
+    }
+
+    if (this.mode === "scratchpad") {
+      const mainState = this.scratchpadFiles.activeFileName === "main.ly"
+        ? this.editor.state
+        : this.scratchpadFiles.states["main.ly"];
+      const transaction = mainState.update({
+        changes: {
+          from: 0,
+          to: mainState.doc.length,
+          insert: source,
+        },
+      });
+      if (this.scratchpadFiles.activeFileName === "main.ly") {
+        this.editor.dispatch(transaction);
+      } else {
+        this.scratchpadFiles = {
+          ...this.scratchpadFiles,
+          states: {
+            ...this.scratchpadFiles.states,
+            "main.ly": transaction.state,
+          },
+        };
+        this.onStateChange();
+      }
+      return this.getLilyPondDocument();
+    }
+
+    this.editor.dispatch({
+      changes: {
+        from: 0,
+        to: this.editor.state.doc.length,
+        insert: source,
+      },
+    });
+    return this.getLilyPondDocument();
   }
 
   getRenderContext(): WorkspaceRenderContext | null {

@@ -28,6 +28,11 @@ import {
 import { defaultSource } from "./starter-source";
 import { STARTER_ORCHESTRA } from "./starter-orchestra";
 import {
+  registerWebMcpTools,
+  WebMcpActionError,
+  type WebMcpRegistration,
+} from "./webmcp";
+import {
   WorkspaceController,
   type WorkspaceRenderContext,
 } from "./workspace-controller";
@@ -37,6 +42,17 @@ type CsoundScoreSource = {
   name: string;
   source: string;
   timelineSource: string | null;
+};
+type ActionResult = Record<string, unknown>;
+type DiagnosticRecord = {
+  level: DiagnosticLevel;
+  message: string;
+};
+type LilyPondSnapshot = {
+  source: string;
+  displayPath: string;
+  mode: "scratchpad" | "folder";
+  workspaceId: string | null;
 };
 
 type WorkerMessage =
@@ -120,6 +136,12 @@ const scoreAudio = requiredElement<HTMLAudioElement>("#score-audio");
 
 let workspaceController: WorkspaceController | null = null;
 let activeRequestId: number | null = null;
+let pendingRender: {
+  requestId: number;
+  document: LilyPondSnapshot;
+  inputFingerprint: string;
+  resolve: (result: ActionResult) => void;
+} | null = null;
 let audioRenderController: AbortController | null = null;
 let audioRenderSequence = 0;
 let audioScoreSource: CsoundScoreSource | null = null;
@@ -130,6 +152,15 @@ let pdfExportSequence = 0;
 let pdfFeedbackTimer: number | null = null;
 let scoreTransport: AudioTransport;
 let scorePlayhead: ScorePlayhead;
+let playbackInterruptionSequence = 0;
+let playbackInterruption: "pause" | "stop" = "stop";
+let webMcpRegistration: WebMcpRegistration | undefined;
+let workspaceRevision = 0;
+let lastLilyPondDocument: LilyPondSnapshot | null = null;
+let renderedLilyPondDocument: LilyPondSnapshot | null = null;
+let renderedInputFingerprint: string | null = null;
+let lilyPondDocumentObserved = false;
+const diagnosticRecords: DiagnosticRecord[] = [];
 let audioDisplayOverride: {
   state: "empty" | "preparing" | "ready" | "error";
   label: string;
@@ -271,7 +302,7 @@ function createEditorState(content: string, fileName: string) {
       {
         key: "Mod-Enter",
         run: () => {
-          renderScore();
+          void renderScore();
           return true;
         },
       },
@@ -395,20 +426,34 @@ function updatePdfAvailability() {
   if (pdfExporting) {
     return;
   }
+  const stale = renderedSvgPages.length > 0 && !renderedOutputIsCurrent();
   setPdfAction(
     "idle",
     "Export PDF",
-    renderedSvgPages.length === 0 || activeRequestId !== null,
+    renderedSvgPages.length === 0 || stale || activeRequestId !== null,
   );
+  if (stale) {
+    exportPdfButton.title = "Render the changed LilyPond source before exporting";
+  }
 }
 
 function clearRenderedSvgPages() {
   renderedSvgPages = [];
+  renderedLilyPondDocument = null;
+  renderedInputFingerprint = null;
   clearPdfFeedbackTimer();
   updatePdfAvailability();
 }
 
 function handleWorkspaceStateChange() {
+  currentLilyPondDocument();
+  if (
+    audioScoreSource &&
+    renderedSvgPages.length > 0 &&
+    !renderedOutputIsCurrent()
+  ) {
+    clearScoreAudio("Render the changed source for playback");
+  }
   if (activeRequestId !== null) {
     cancelRender(
       "Render cancelled because the active file or folder changed.",
@@ -416,6 +461,7 @@ function handleWorkspaceStateChange() {
     return;
   }
   updateRenderAvailability();
+  updatePdfAvailability();
 }
 
 function setRuntimeState(
@@ -440,6 +486,11 @@ function addDiagnostic(level: DiagnosticLevel, message: string) {
   for (const line of cleanMessage.split(/\r?\n/)) {
     if (!line.trim()) {
       continue;
+    }
+
+    diagnosticRecords.push({ level, message: line });
+    if (diagnosticRecords.length > 200) {
+      diagnosticRecords.splice(0, diagnosticRecords.length - 200);
     }
 
     const item = document.createElement("li");
@@ -553,6 +604,24 @@ scoreTransport = new AudioTransport(scoreAudio, {
   },
 });
 
+function interruptPlayback(mode: "pause" | "stop") {
+  playbackInterruptionSequence += 1;
+  playbackInterruption = mode;
+}
+
+function enforcePlaybackInterruption(sequence: number) {
+  if (sequence === playbackInterruptionSequence) {
+    return null;
+  }
+  if (playbackInterruption === "stop") {
+    scoreTransport.stop();
+    scorePlayhead.reset();
+    return "stopped";
+  }
+  scoreTransport.pause();
+  return "paused";
+}
+
 function stopAudioPreparation() {
   audioRenderSequence += 1;
   audioRenderController?.abort();
@@ -560,6 +629,7 @@ function stopAudioPreparation() {
 }
 
 function clearScoreAudio(label = "No Csound score") {
+  interruptPlayback("stop");
   stopAudioPreparation();
   audioScoreSource = null;
   audioScoreName = null;
@@ -585,6 +655,7 @@ function showScoreSourceReady() {
 }
 
 function invalidateScoreAudioForOrchestraChange() {
+  interruptPlayback("stop");
   stopAudioPreparation();
   scoreTransport.clear();
   if (audioScoreSource) {
@@ -669,10 +740,19 @@ function setScoreAudioSource(scores: CsoundScoreSource[]) {
   }
 }
 
-async function prepareScoreAudio() {
+async function prepareScoreAudio(): Promise<ActionResult> {
   const score = audioScoreSource;
-  if (!score || audioRenderController) {
-    return;
+  if (!score) {
+    return {
+      prepared: false,
+      reason: "no_csound_score",
+    };
+  }
+  if (audioRenderController) {
+    return {
+      prepared: false,
+      reason: "audio_preparing",
+    };
   }
 
   stopAudioPreparation();
@@ -696,7 +776,7 @@ async function prepareScoreAudio() {
           fallback: true,
         };
     if (sequence !== audioRenderSequence) {
-      return;
+      return { prepared: false, reason: "stopped" };
     }
     addDiagnostic(
       "info",
@@ -721,7 +801,7 @@ async function prepareScoreAudio() {
       },
     });
     if (sequence !== audioRenderSequence) {
-      return;
+      return { prepared: false, reason: "stopped" };
     }
 
     scoreTransport.loadWav(wave);
@@ -732,12 +812,17 @@ async function prepareScoreAudio() {
       `Prepared ${score.name} for playback ` +
         `(${(wave.byteLength / 1024).toFixed(0)} KiB)`,
     );
-    void scoreTransport.play().catch(() => {
-      // AudioTransport reports the error through its onError callback.
-    });
+    return {
+      prepared: true,
+      score_file: score.name,
+      audio_bytes: wave.byteLength,
+    };
   } catch (error) {
     if (sequence !== audioRenderSequence || controller.signal.aborted) {
-      return;
+      return {
+        prepared: false,
+        reason: "stopped",
+      };
     }
     const message = error instanceof Error ? error.message : String(error);
     audioDisplayOverride = {
@@ -746,6 +831,11 @@ async function prepareScoreAudio() {
     };
     syncAudioTransport(scoreTransport.snapshot);
     addDiagnostic("error", `Could not prepare ${score.name}: ${message}`);
+    return {
+      prepared: false,
+      reason: "audio_render_failed",
+      message,
+    };
   } finally {
     if (audioRenderController === controller) {
       audioRenderController = null;
@@ -848,7 +938,11 @@ function createWorker() {
     const message = event.message || "The renderer worker stopped.";
     addDiagnostic("error", message);
     showRenderError("The renderer stopped.");
-    finishRender("error", "Renderer stopped");
+    finishRender("error", "Renderer stopped", {
+      rendered: false,
+      reason: "renderer_stopped",
+      message,
+    });
   });
 
   worker = nextWorker;
@@ -867,7 +961,9 @@ function disposeWorker() {
 function finishRender(
   state: "ready" | "error",
   label: string,
+  result: ActionResult,
 ) {
+  const finishedRequestId = activeRequestId;
   activeRequestId = null;
   setRenderAction(
     state === "error" ? "error" : "idle",
@@ -879,6 +975,14 @@ function finishRender(
   setRuntimeState(state, label);
   disposeWorker();
   updatePdfAvailability();
+  if (
+    finishedRequestId !== null &&
+    pendingRender?.requestId === finishedRequestId
+  ) {
+    const pending = pendingRender;
+    pendingRender = null;
+    pending.resolve(result);
+  }
 }
 
 function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
@@ -929,18 +1033,35 @@ function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
   if (message.type === "error") {
     addDiagnostic("error", message.message);
     showRenderError("LilyPond did not produce a score.");
-    finishRender("error", "Render failed");
+    finishRender("error", "Render failed", {
+      rendered: false,
+      reason: "render_failed",
+      message: message.message,
+    });
     return;
   }
 
   try {
     showScore(message.svgs, message.files);
+    renderedLilyPondDocument =
+      pendingRender?.requestId === message.requestId
+        ? pendingRender.document
+        : null;
+    renderedInputFingerprint =
+      pendingRender?.requestId === message.requestId
+        ? pendingRender.inputFingerprint
+        : null;
+    updatePdfAvailability();
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
     addDiagnostic("error", errorMessage);
     showRenderError("The SVG preview could not be opened.");
-    finishRender("error", "Preview failed");
+    finishRender("error", "Preview failed", {
+      rendered: false,
+      reason: "preview_failed",
+      message: errorMessage,
+    });
     return;
   }
 
@@ -951,28 +1072,66 @@ function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
       `Rendered ${message.files.join(", ")} in ${duration}`,
     );
     setScoreAudioSource(message.scores ?? []);
-    finishRender("ready", `Rendered in ${duration}`);
+    finishRender("ready", `Rendered in ${duration}`, {
+      rendered: true,
+      exit_code: message.exitCode ?? 0,
+      duration_ms: message.durationMs,
+      page_count: message.svgs.length,
+      files: message.files,
+      csound_score_count: message.scores?.length ?? 0,
+    });
   } else {
     addDiagnostic(
       "warning",
       `LilyPond exited with code ${message.exitCode}; showing available output`,
     );
     clearScoreAudio();
-    finishRender("error", `Exit ${message.exitCode}`);
+    finishRender("error", `Exit ${message.exitCode}`, {
+      rendered: false,
+      reason: "lilypond_exit",
+      exit_code: message.exitCode,
+      duration_ms: message.durationMs,
+      page_count: message.svgs.length,
+      files: message.files,
+    });
   }
 }
 
-function renderScore() {
-  if (
-    activeRequestId !== null ||
-    pdfExporting ||
-    !canRenderCurrentDocument()
-  ) {
-    return;
+function renderScore(): Promise<ActionResult> {
+  if (!packageReady) {
+    return Promise.resolve({
+      rendered: false,
+      reason: "renderer_not_ready",
+    });
   }
+  if (activeRequestId !== null || pdfExporting) {
+    return Promise.resolve({
+      rendered: false,
+      reason: "workbench_busy",
+    });
+  }
+  if (!canRenderCurrentDocument()) {
+    return Promise.resolve({
+      rendered: false,
+      reason: "no_lilypond_document",
+    });
+  }
+
+  const sourceDocument = currentLilyPondDocument();
+  if (!sourceDocument) {
+    return Promise.resolve({
+      rendered: false,
+      reason: "no_lilypond_document",
+    });
+  }
+  const renderDocument = lilyPondSnapshot(sourceDocument);
 
   const workspaceRenderContext: WorkspaceRenderContext | null =
     workspaceController?.getRenderContext() ?? null;
+  const inputFingerprint = renderInputFingerprint(
+    renderDocument,
+    workspaceRenderContext,
+  );
   const source =
     workspaceRenderContext?.source ??
     workspaceController?.getScratchpadRenderSource() ??
@@ -981,6 +1140,7 @@ function renderScore() {
   requestId += 1;
   activeRequestId = requestId;
   updatePdfAvailability();
+  interruptPlayback("pause");
   cancelAudioPreparation(false);
   if (scoreTransport.snapshot.state === "playing") {
     scoreTransport.pause();
@@ -998,45 +1158,126 @@ function renderScore() {
   setRuntimeState("working", "Starting renderer");
   addDiagnostic("info", `Render requested for ${inputLabel}`);
 
-  getWorker().postMessage({
-    type: "render",
-    requestId,
-    source,
-    ...(workspaceRenderContext
-      ? {
-          inputPath: workspaceRenderContext.path,
-          workspaceRoot: workspaceRenderContext.rootHandle,
-          openBuffers: workspaceRenderContext.openBuffers,
-        }
-      : {}),
+  const result = new Promise<ActionResult>((resolve) => {
+    pendingRender = {
+      requestId,
+      document: renderDocument,
+      inputFingerprint,
+      resolve,
+    };
   });
+  try {
+    getWorker().postMessage({
+      type: "render",
+      requestId,
+      source,
+      ...(workspaceRenderContext
+        ? {
+            inputPath: workspaceRenderContext.path,
+            workspaceRoot: workspaceRenderContext.rootHandle,
+            openBuffers: workspaceRenderContext.openBuffers,
+          }
+        : {}),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    addDiagnostic("error", message);
+    showRenderError("The renderer could not be started.");
+    finishRender("error", "Renderer failed", {
+      rendered: false,
+      reason: "renderer_start_failed",
+      message,
+    });
+  }
+  return result;
 }
 
 function cancelRender(message = "Render cancelled") {
   if (activeRequestId === null) {
-    return;
+    return false;
   }
 
   addDiagnostic("warning", message);
   previewSummary.textContent = previewSummaryBeforeRender;
-  finishRender("ready", "Render cancelled");
+  finishRender("ready", "Render cancelled", {
+    rendered: false,
+    reason: "cancelled",
+  });
+  return true;
 }
 
 renderButton.addEventListener("click", () => {
   if (activeRequestId === null) {
-    renderScore();
+    void renderScore();
   } else {
     cancelRender();
   }
 });
 
-exportPdfButton.addEventListener("click", () => {
-  if (
-    pdfExporting ||
-    activeRequestId !== null ||
-    renderedSvgPages.length === 0
-  ) {
-    return;
+function triggerTextDownload(source: string, type: string, fileName: string) {
+  const blob = new Blob([source], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return blob.size;
+}
+
+function exportSvg(): ActionResult {
+  if (activeRequestId !== null || pdfExporting) {
+    return { exported: false, reason: "workbench_busy" };
+  }
+  if (renderedSvgPages.length === 0) {
+    return { exported: false, reason: "no_rendered_score" };
+  }
+  if (!renderedOutputIsCurrent()) {
+    return { exported: false, reason: "stale_render" };
+  }
+
+  interruptPlayback("pause");
+  cancelAudioPreparation(false);
+  if (scoreTransport.snapshot.state === "playing") {
+    scoreTransport.pause();
+  }
+  const files = renderedSvgPages.map((page) => ({
+    file_name: page.fileName,
+    byte_length: triggerTextDownload(
+      page.source,
+      "image/svg+xml;charset=utf-8",
+      page.fileName,
+    ),
+  }));
+  const totalBytes = files.reduce(
+    (total, file) => total + file.byte_length,
+    0,
+  );
+  addDiagnostic(
+    "success",
+    `Exported ${files.length} SVG ${files.length === 1 ? "file" : "files"}`,
+  );
+  return {
+    exported: true,
+    format: "svg",
+    file_count: files.length,
+    total_bytes: totalBytes,
+    files,
+  };
+}
+
+async function exportPdf(): Promise<ActionResult> {
+  if (pdfExporting || activeRequestId !== null) {
+    return { exported: false, reason: "workbench_busy" };
+  }
+  if (renderedSvgPages.length === 0) {
+    return { exported: false, reason: "no_rendered_score" };
+  }
+  if (!renderedOutputIsCurrent()) {
+    return { exported: false, reason: "stale_render" };
   }
 
   clearPdfFeedbackTimer();
@@ -1045,6 +1286,7 @@ exportPdfButton.addEventListener("click", () => {
   const sequence = pdfExportSequence;
   const pages = [...renderedSvgPages];
   const fileName = pdfFileName(pages);
+  interruptPlayback("pause");
   cancelAudioPreparation(false);
   if (scoreTransport.snapshot.state === "playing") {
     scoreTransport.pause();
@@ -1057,106 +1299,519 @@ exportPdfButton.addEventListener("click", () => {
     `Building ${fileName} from the rendered score.`,
   );
 
-  void import("./pdf/export-pdf")
-    .then(({ exportSvgPagesToPdf }) =>
-      exportSvgPagesToPdf(pages, fileName)
-    )
-    .then((result) => {
-      if (sequence !== pdfExportSequence) {
-        return;
-      }
-      const size = `${(result.byteLength / 1024).toFixed(0)} KiB`;
-      addDiagnostic(
-        "success",
-        `Exported ${result.fileName} · ${result.pageCount} ` +
-          `${result.pageCount === 1 ? "page" : "pages"} · ${size}`,
-      );
-      if (result.warnings.length > 0) {
-        addDiagnostic(
-          "warning",
-          `PDF export kept the score but reported ${result.warnings.length} ` +
-            `${result.warnings.length === 1 ? "warning" : "warnings"}: ` +
-            result.warnings.join("; "),
-        );
-      }
-      setPdfAction(
-        "success",
-        "Download started",
-        true,
-        `PDF download started for ${result.fileName}.`,
-      );
-      pdfFeedbackTimer = window.setTimeout(() => {
-        pdfFeedbackTimer = null;
-        updatePdfAvailability();
-      }, 2_500);
-    })
-    .catch((error) => {
-      if (sequence !== pdfExportSequence) {
-        return;
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      addDiagnostic(
-        "error",
-        `PDF export failed: ${message}`,
-      );
-      setPdfAction(
-        "error",
-        "Retry PDF",
-        renderedSvgPages.length === 0,
-        "PDF export failed. Retry the export.",
-      );
-    })
-    .finally(() => {
-      if (sequence === pdfExportSequence) {
-        pdfExporting = false;
-        updateRenderAvailability();
-      }
+  try {
+    const { exportSvgPagesToPdf, triggerPdfDownload } =
+      await import("./pdf/export-pdf");
+    const result = await exportSvgPagesToPdf(pages, fileName, {
+      download: (blob, downloadName) => {
+        if (sequence === pdfExportSequence) {
+          triggerPdfDownload(blob, downloadName);
+        }
+      },
     });
+    if (sequence !== pdfExportSequence) {
+      return { exported: false, reason: "stopped" };
+    }
+    const size = `${(result.byteLength / 1024).toFixed(0)} KiB`;
+    addDiagnostic(
+      "success",
+      `Exported ${result.fileName} · ${result.pageCount} ` +
+        `${result.pageCount === 1 ? "page" : "pages"} · ${size}`,
+    );
+    if (result.warnings.length > 0) {
+      addDiagnostic(
+        "warning",
+        `PDF export kept the score but reported ${result.warnings.length} ` +
+          `${result.warnings.length === 1 ? "warning" : "warnings"}: ` +
+          result.warnings.join("; "),
+      );
+    }
+    setPdfAction(
+      "success",
+      "Download started",
+      true,
+      `PDF download started for ${result.fileName}.`,
+    );
+    pdfFeedbackTimer = window.setTimeout(() => {
+      pdfFeedbackTimer = null;
+      updatePdfAvailability();
+    }, 2_500);
+    return {
+      exported: true,
+      format: "pdf",
+      file_name: result.fileName,
+      byte_length: result.byteLength,
+      page_count: result.pageCount,
+      warnings: result.warnings,
+    };
+  } catch (error) {
+    if (sequence !== pdfExportSequence) {
+      return { exported: false, reason: "stopped" };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    addDiagnostic(
+      "error",
+      `PDF export failed: ${message}`,
+    );
+    setPdfAction(
+      "error",
+      "Retry PDF",
+      renderedSvgPages.length === 0,
+      "PDF export failed. Retry the export.",
+    );
+    return {
+      exported: false,
+      reason: "export_failed",
+      message,
+    };
+  } finally {
+    if (sequence === pdfExportSequence) {
+      pdfExporting = false;
+      updateRenderAvailability();
+    }
+  }
+}
+
+exportPdfButton.addEventListener("click", () => {
+  void exportPdf();
 });
 
-audioPlayPause.addEventListener("click", () => {
-  if (scoreTransport.snapshot.state === "playing") {
-    scoreTransport.pause();
-    return;
-  }
+function playbackStateData(): ActionResult {
+  const snapshot = scoreTransport.snapshot;
+  return {
+    playback_state: audioRenderController ? "preparing" : snapshot.state,
+    position_seconds: snapshot.currentTime,
+    duration_seconds: snapshot.duration,
+    score_file: audioScoreName,
+    has_csound_score: audioScoreSource !== null,
+  };
+}
 
-  if (audioRenderController) {
-    return;
-  }
+function playbackFailureReason(error: unknown) {
+  return error instanceof DOMException && error.name === "NotAllowedError"
+    ? "user_gesture_required"
+    : "playback_failed";
+}
 
+async function playScore(positionSeconds: number): Promise<ActionResult> {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < 0) {
+    return { playing: false, reason: "invalid_position" };
+  }
+  if (activeRequestId !== null || pdfExporting) {
+    return { playing: false, reason: "workbench_busy" };
+  }
+  if (renderedSvgPages.length > 0 && !renderedOutputIsCurrent()) {
+    clearScoreAudio("Render the changed source for playback");
+    return { playing: false, reason: "stale_render", ...playbackStateData() };
+  }
+  const interruptionSequence = playbackInterruptionSequence;
   if (scoreTransport.snapshot.state === "empty") {
-    void prepareScoreAudio();
-    return;
+    const preparation = await prepareScoreAudio();
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        playing: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    if (preparation.prepared !== true) {
+      return {
+        playing: false,
+        reason: typeof preparation.reason === "string"
+          ? preparation.reason
+          : "audio_render_failed",
+        ...playbackStateData(),
+      };
+    }
   }
 
   if (audioDisplayOverride?.state === "error") {
     audioDisplayOverride = null;
     syncAudioTransport(scoreTransport.snapshot);
   }
-  void scoreTransport.play().catch(() => {
-    // AudioTransport reports the error through its onError callback.
-  });
-});
-
-audioStop.addEventListener("click", () => {
-  if (cancelAudioPreparation()) {
-    return;
+  try {
+    await scoreTransport.waitUntilSeekable();
+    const interruptedBeforePlay =
+      enforcePlaybackInterruption(interruptionSequence);
+    if (interruptedBeforePlay) {
+      return {
+        playing: false,
+        reason: interruptedBeforePlay,
+        ...playbackStateData(),
+      };
+    }
+    scoreTransport.seek(positionSeconds);
+    scorePlayhead.seek();
+    await scoreTransport.play();
+    const interruptedAfterPlay =
+      enforcePlaybackInterruption(interruptionSequence);
+    if (interruptedAfterPlay) {
+      return {
+        playing: false,
+        reason: interruptedAfterPlay,
+        ...playbackStateData(),
+      };
+    }
+    return {
+      playing: true,
+      requested_position_seconds: positionSeconds,
+      ...playbackStateData(),
+    };
+  } catch (error) {
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        playing: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    return {
+      playing: false,
+      reason: playbackFailureReason(error),
+      message: error instanceof Error ? error.message : String(error),
+      ...playbackStateData(),
+    };
   }
+}
+
+async function resumePlayback(): Promise<ActionResult> {
+  if (renderedSvgPages.length > 0 && !renderedOutputIsCurrent()) {
+    clearScoreAudio("Render the changed source for playback");
+    return { resumed: false, reason: "stale_render", ...playbackStateData() };
+  }
+  if (scoreTransport.snapshot.state === "empty") {
+    return { resumed: false, reason: "audio_not_ready", ...playbackStateData() };
+  }
+  if (audioDisplayOverride?.state === "error") {
+    audioDisplayOverride = null;
+    syncAudioTransport(scoreTransport.snapshot);
+  }
+  const interruptionSequence = playbackInterruptionSequence;
+  try {
+    await scoreTransport.play();
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        resumed: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    return { resumed: true, ...playbackStateData() };
+  } catch (error) {
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        resumed: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    return {
+      resumed: false,
+      reason: playbackFailureReason(error),
+      message: error instanceof Error ? error.message : String(error),
+      ...playbackStateData(),
+    };
+  }
+}
+
+function pausePlayback(): ActionResult {
+  interruptPlayback("pause");
+  if (scoreTransport.snapshot.state !== "playing") {
+    return { paused: false, reason: "not_playing", ...playbackStateData() };
+  }
+  scoreTransport.pause();
+  return { paused: true, ...playbackStateData() };
+}
+
+function stopPlayback(): ActionResult {
+  interruptPlayback("stop");
+  const cancelledPreparation = cancelAudioPreparation(false);
   audioDisplayOverride = null;
   scoreTransport.stop();
   scorePlayhead.reset();
+  if (scoreTransport.snapshot.state === "empty" && audioScoreSource) {
+    showScoreSourceReady();
+  }
+  return {
+    stopped: true,
+    cancelled_preparation: cancelledPreparation,
+    ...playbackStateData(),
+  };
+}
+
+async function seekPlayback(positionSeconds: number): Promise<ActionResult> {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < 0) {
+    return { seeked: false, reason: "invalid_position" };
+  }
+  if (renderedSvgPages.length > 0 && !renderedOutputIsCurrent()) {
+    clearScoreAudio("Render the changed source for playback");
+    return { seeked: false, reason: "stale_render", ...playbackStateData() };
+  }
+  if (scoreTransport.snapshot.state === "empty") {
+    return { seeked: false, reason: "audio_not_ready", ...playbackStateData() };
+  }
+  const interruptionSequence = playbackInterruptionSequence;
+  try {
+    await scoreTransport.waitUntilSeekable();
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        seeked: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    scoreTransport.seek(positionSeconds);
+    scorePlayhead.seek();
+    return {
+      seeked: true,
+      requested_position_seconds: positionSeconds,
+      ...playbackStateData(),
+    };
+  } catch (error) {
+    const interrupted = enforcePlaybackInterruption(interruptionSequence);
+    if (interrupted) {
+      return {
+        seeked: false,
+        reason: interrupted,
+        ...playbackStateData(),
+      };
+    }
+    return {
+      seeked: false,
+      reason: "audio_not_ready",
+      message: error instanceof Error ? error.message : String(error),
+      ...playbackStateData(),
+    };
+  }
+}
+
+audioPlayPause.addEventListener("click", () => {
+  if (scoreTransport.snapshot.state === "playing") {
+    pausePlayback();
+  } else if (scoreTransport.snapshot.state === "empty") {
+    void playScore(0);
+  } else {
+    void resumePlayback();
+  }
+});
+
+audioStop.addEventListener("click", () => {
+  stopPlayback();
 });
 
 audioSeek.addEventListener("input", () => {
-  scoreTransport.seek(Number(audioSeek.value));
-  scorePlayhead.seek();
+  void seekPlayback(Number(audioSeek.value));
 });
 
 clearConsole.addEventListener("click", () => {
   consoleOutput.replaceChildren();
   messageCount = 0;
+  diagnosticRecords.length = 0;
   updateDiagnosticCount();
 });
+
+function lilyPondSnapshot(document: LilyPondSnapshot): LilyPondSnapshot {
+  return {
+    source: document.source,
+    displayPath: document.displayPath,
+    mode: document.mode,
+    workspaceId: document.workspaceId,
+  };
+}
+
+function sameLilyPondSnapshot(
+  left: LilyPondSnapshot | null,
+  right: LilyPondSnapshot | null,
+) {
+  return left?.source === right?.source &&
+    left?.displayPath === right?.displayPath &&
+    left?.mode === right?.mode &&
+    left?.workspaceId === right?.workspaceId;
+}
+
+function renderInputFingerprint(
+  document: LilyPondSnapshot,
+  context: WorkspaceRenderContext | null,
+) {
+  const openLilyPondBuffers = context
+    ? context.openBuffers
+      .filter((buffer) =>
+        isLilyPondFile(buffer.path[buffer.path.length - 1] ?? "")
+      )
+      .map((buffer) => ({
+        path: buffer.path,
+        content: buffer.content,
+      }))
+      .sort((left, right) =>
+        JSON.stringify(left.path).localeCompare(JSON.stringify(right.path))
+      )
+    : [];
+  return JSON.stringify({
+    document,
+    openLilyPondBuffers,
+  });
+}
+
+function currentLilyPondDocument() {
+  const sourceDocument = workspaceController?.getLilyPondDocument() ?? null;
+  const snapshot = sourceDocument ? lilyPondSnapshot(sourceDocument) : null;
+  const changed = lilyPondDocumentObserved &&
+    !sameLilyPondSnapshot(snapshot, lastLilyPondDocument);
+  if (changed) {
+    workspaceRevision += 1;
+    clearScoreAudio("Render the changed source for playback");
+    scorePlayhead.reset();
+    if (pdfExporting) {
+      pdfExportSequence += 1;
+      pdfExporting = false;
+      addDiagnostic(
+        "warning",
+        "Cancelled PDF export because the LilyPond source changed",
+      );
+    }
+  }
+  lilyPondDocumentObserved = true;
+  lastLilyPondDocument = snapshot;
+  return sourceDocument;
+}
+
+function renderedOutputIsCurrent() {
+  if (
+    renderedSvgPages.length === 0 ||
+    !renderedLilyPondDocument ||
+    !renderedInputFingerprint
+  ) {
+    return false;
+  }
+  const sourceDocument = currentLilyPondDocument();
+  const snapshot = sourceDocument ? lilyPondSnapshot(sourceDocument) : null;
+  if (!snapshot || !sameLilyPondSnapshot(renderedLilyPondDocument, snapshot)) {
+    return false;
+  }
+  const context = workspaceController?.getRenderContext() ?? null;
+  return renderedInputFingerprint === renderInputFingerprint(snapshot, context);
+}
+
+function readWebMcpWorkspace(): ActionResult {
+  const sourceDocument = currentLilyPondDocument();
+  const renderState = activeRequestId !== null
+    ? "rendering"
+    : !packageReady
+    ? "loading"
+    : renderedOutputIsCurrent()
+    ? "rendered"
+    : renderedSvgPages.length > 0
+    ? "stale"
+    : "ready";
+  return {
+    source: sourceDocument?.source ?? null,
+    file_name: sourceDocument?.displayPath ?? null,
+    workspace_mode: sourceDocument?.mode ?? null,
+    workspace_id: sourceDocument?.workspaceId ?? null,
+    dirty: sourceDocument?.dirty ?? false,
+    revision: workspaceRevision,
+    render_state: renderState,
+    rendered_pages: renderedSvgPages.map((page) => ({
+      file_name: page.fileName,
+      width_points: page.widthPoints,
+      height_points: page.heightPoints,
+    })),
+    pdf_export_state: pdfExporting ? "exporting" : "idle",
+    ...playbackStateData(),
+    diagnostics: diagnosticRecords.slice(-50),
+  };
+}
+
+function updateLilyPondFromWebMcp(
+  source: string,
+  baseRevision: number,
+): ActionResult {
+  if (activeRequestId !== null || pdfExporting) {
+    throw new WebMcpActionError(
+      "workbench_busy",
+      "Wait for the current render or export before changing the source.",
+    );
+  }
+  const before = currentLilyPondDocument();
+  if (baseRevision !== workspaceRevision) {
+    throw new WebMcpActionError(
+      "revision_conflict",
+      `The workspace is now at revision ${workspaceRevision}. Read it again before editing.`,
+    );
+  }
+  if (!before || !workspaceController) {
+    throw new WebMcpActionError(
+      "no_lilypond_document",
+      "Open a LilyPond file before changing source in folder mode.",
+    );
+  }
+
+  const changed = source !== before.source;
+  const after = workspaceController.replaceLilyPondSource(source);
+  if (!after) {
+    throw new WebMcpActionError(
+      "no_lilypond_document",
+      "The LilyPond file is no longer active.",
+    );
+  }
+  currentLilyPondDocument();
+  if (changed) {
+    addDiagnostic(
+      "info",
+      `Updated ${after.displayPath} through WebMCP; render to refresh the score`,
+    );
+  }
+  return {
+    updated: true,
+    changed,
+    revision: workspaceRevision,
+    file_name: after.displayPath,
+    workspace_mode: after.mode,
+    dirty: after.dirty,
+  };
+}
+
+function cancelRenderForWebMcp(): ActionResult {
+  const cancelled = cancelRender("Render cancelled through WebMCP");
+  return cancelled
+    ? { cancelled: true }
+    : { cancelled: false, reason: "no_active_render" };
+}
+
+async function setupWebMcp() {
+  try {
+    currentLilyPondDocument();
+    webMcpRegistration = await registerWebMcpTools({
+      readWorkspace: readWebMcpWorkspace,
+      updateLilypond: updateLilyPondFromWebMcp,
+      renderScore,
+      cancelRender: cancelRenderForWebMcp,
+      exportSvg,
+      exportPdf,
+      playScore,
+      resumePlayback,
+      pausePlayback,
+      stopPlayback,
+      seekPlayback,
+    });
+    if (webMcpRegistration.supported) {
+      addDiagnostic(
+        "success",
+        `${webMcpRegistration.toolCount} WebMCP editor tools ready`,
+      );
+    }
+  } catch (error) {
+    addDiagnostic(
+      "warning",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
 
 async function loadInterfaceFonts() {
   const definitions = [
@@ -1195,6 +1850,7 @@ window.addEventListener("pagehide", (event) => {
   clearScorePages();
   scorePlayhead.dispose();
   workspaceController?.dispose();
+  webMcpRegistration?.dispose();
 });
 
 updateDiagnosticCount();
@@ -1211,10 +1867,12 @@ workspaceController = new WorkspaceController({
   onStateChange: handleWorkspaceStateChange,
   onOrchestraChange: invalidateScoreAudioForOrchestraChange,
 });
-void workspaceController.initialize().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  addDiagnostic("error", message);
-});
+void workspaceController.initialize()
+  .catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    addDiagnostic("error", message);
+  })
+  .finally(() => setupWebMcp());
 void loadInterfaceFonts().catch(() => {
   addDiagnostic("warning", "Could not load the LilyPond interface font");
 });

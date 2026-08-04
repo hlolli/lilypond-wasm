@@ -112,6 +112,7 @@ jobs:
           test -s editor/dist/source/npm/codemirror-lang-csound/dist/index.js.map
           test -s editor/dist/source/editor/SOURCE_FILES.md
           test -s editor/dist/source/editor/main.ts
+          test -s editor/dist/source/editor/webmcp.ts
           test -s editor/dist/source/editor/starter-source.ts
           test -s editor/dist/source/editor/licenses/npm/@hlolli/codemirror-lang-csound/LICENSE
           test -s editor/dist/source/editor/licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_NOTICE.md

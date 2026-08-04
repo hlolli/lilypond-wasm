@@ -99,8 +99,54 @@ export class AudioTransport {
     const duration = Number.isFinite(this.audio.duration)
       ? this.audio.duration
       : 0;
-    this.audio.currentTime = Math.min(Math.max(seconds, 0), duration);
+    const nextTime = Math.min(Math.max(seconds, 0), duration);
+    this.audio.currentTime = nextTime;
+    if (this.#state === "ended" && nextTime < duration) {
+      this.#setState("paused");
+      return;
+    }
     this.#emitChange();
+  }
+
+  async waitUntilSeekable(timeoutMs = 10_000) {
+    if (this.#state === "empty") {
+      throw new Error("Render audio before seeking the score.");
+    }
+    if (this.snapshot.duration > 0) {
+      return this.snapshot;
+    }
+
+    return await new Promise<AudioTransportSnapshot>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        this.audio.removeEventListener("loadedmetadata", handleChange);
+        this.audio.removeEventListener("durationchange", handleChange);
+        this.audio.removeEventListener("error", handleError);
+        if (timer !== undefined) {
+          clearTimeout(timer);
+        }
+      };
+      const handleChange = () => {
+        if (this.snapshot.duration <= 0) {
+          return;
+        }
+        cleanup();
+        resolve(this.snapshot);
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("The rendered audio metadata could not be read."));
+      };
+
+      this.audio.addEventListener("loadedmetadata", handleChange);
+      this.audio.addEventListener("durationchange", handleChange);
+      this.audio.addEventListener("error", handleError);
+      timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timed out while reading the rendered audio length."));
+      }, timeoutMs);
+      handleChange();
+    });
   }
 
   clear() {

@@ -95,6 +95,40 @@ describe("AudioTransport", () => {
     expect(transport.snapshot.state).toBe("playing");
   });
 
+  test("plays from a seek position after playback ends", async () => {
+    const audio = new FakeAudioElement();
+    const transport = new AudioTransport(audio.asAudioElement());
+    transport.loadWav(new Uint8Array([1]));
+    audio.currentTime = audio.duration;
+    audio.dispatchEvent(new Event("ended"));
+
+    transport.seek(4.25);
+    expect(transport.snapshot).toEqual({
+      state: "paused",
+      currentTime: 4.25,
+      duration: 12,
+    });
+
+    await transport.play();
+    expect(audio.currentTime).toBe(4.25);
+    expect(transport.snapshot.state).toBe("playing");
+  });
+
+  test("waits for media metadata before a positioned seek", async () => {
+    const audio = new FakeAudioElement();
+    audio.duration = Number.NaN;
+    const transport = new AudioTransport(audio.asAudioElement());
+    transport.loadWav(new Uint8Array([1]));
+
+    const seekable = transport.waitUntilSeekable(100);
+    audio.duration = 9;
+    audio.dispatchEvent(new Event("loadedmetadata"));
+
+    await expect(seekable).resolves.toMatchObject({ duration: 9 });
+    transport.seek(4.25);
+    expect(audio.currentTime).toBe(4.25);
+  });
+
   test("reports a rejected play request", async () => {
     const audio = new FakeAudioElement();
     const errors: Error[] = [];

@@ -1299,6 +1299,7 @@ async function assertBuildOutput() {
     "source/editor/licenses/lekton/Lekton-Regular.ttf",
     "source/editor/bun.lock",
     "source/editor/main.ts",
+    "source/editor/webmcp.ts",
     "source/editor/package.json",
     "source/editor/scripts/build.ts",
     "licenses/npm/pdfkit/package.json",

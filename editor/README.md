@@ -39,6 +39,32 @@ each SVG page. The PDF code loads only when it is used and embeds LilyPond’s
 C059, Nimbus Sans, and Nimbus Mono PS text faces, so it does not add work to
 editor start-up.
 
+## WebMCP
+
+The page registers WebMCP tools through `document.modelContext` when the
+browser provides it. The editor works as before when WebMCP is off.
+
+For local Chrome use:
+
+1. Open `chrome://flags/#enable-webmcp-testing`.
+2. Enable WebMCP and relaunch Chrome.
+3. Open the editor in a WebMCP browser agent.
+
+The tools can read and replace the current LilyPond source, render or cancel a
+render, export SVG or PDF files, and control score playback. `play_score`
+starts at zero unless it receives `position_seconds`. Separate tools resume,
+pause, stop, or seek without changing the source.
+
+Source updates require the revision from `read_workspace`. This check keeps a
+new hand edit or folder switch from being replaced by an older tool call. In
+folder mode, an update changes the active `.ly` editor buffer and marks it as
+changed. It does not save to disk or skip the normal save check. Exports reject
+an old render after the source or an open LilyPond include changes. Playback
+does the same, so render again before exporting or playing it.
+
+WebMCP runs only in the open tab. The page does not send source to a model by
+itself, but a browser agent can read source when asked to use these tools.
+
 The interface includes Lekton by the Accademia di Belle Arti di Urbino. The
 font is available under the SIL Open Font License 1.1, whose full text is
 embedded in the font file. The build also copies the Csound and LilyPond
