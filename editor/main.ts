@@ -133,6 +133,10 @@ const audioTime = requiredElement<HTMLOutputElement>("#audio-time");
 const audioStateLabel =
   requiredElement<HTMLSpanElement>("#audio-state-label");
 const scoreAudio = requiredElement<HTMLAudioElement>("#score-audio");
+const webMcpInfoButton =
+  requiredElement<HTMLButtonElement>("#webmcp-info-button");
+const webMcpInfoTooltip =
+  requiredElement<HTMLSpanElement>("#webmcp-info-tooltip");
 
 let workspaceController: WorkspaceController | null = null;
 let activeRequestId: number | null = null;
@@ -1799,6 +1803,15 @@ async function setupWebMcp() {
       stopPlayback,
       seekPlayback,
     });
+    webMcpInfoButton.dataset.state = webMcpRegistration.supported
+      ? "ready"
+      : "flag-needed";
+    webMcpInfoButton.setAttribute(
+      "aria-label",
+      webMcpRegistration.supported
+        ? `${webMcpRegistration.toolCount} WebMCP tools ready. Show setup details`
+        : "WebMCP supported. Show setup details",
+    );
     if (webMcpRegistration.supported) {
       addDiagnostic(
         "success",
@@ -1806,12 +1819,19 @@ async function setupWebMcp() {
       );
     }
   } catch (error) {
+    webMcpInfoButton.dataset.state = "error";
     addDiagnostic(
       "warning",
       error instanceof Error ? error.message : String(error),
     );
   }
 }
+
+webMcpInfoButton.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    webMcpInfoButton.blur();
+  }
+});
 
 async function loadInterfaceFonts() {
   const definitions = [
@@ -1854,6 +1874,8 @@ window.addEventListener("pagehide", (event) => {
 });
 
 updateDiagnosticCount();
+webMcpInfoTooltip.textContent =
+  "Enable chrome://flags/#enable-webmcp-testing, then relaunch Chrome.";
 updatePdfAvailability();
 syncAudioTransport(scoreTransport.snapshot);
 scorePlayhead.sync(scoreTransport.snapshot);

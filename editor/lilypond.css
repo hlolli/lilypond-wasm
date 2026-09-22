@@ -1551,6 +1551,11 @@ a:visited {
 .tool-footer {
   min-width: 0;
   padding: var(--space-xs) var(--space-md);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs) var(--space-lg);
   border-block-start: var(--rule-hair) solid var(--color-rule);
   background: var(--color-paper);
   color: var(--color-muted);
@@ -1567,6 +1572,56 @@ a:visited {
   white-space: nowrap;
 }
 
+.webmcp-info {
+  position: relative;
+  display: inline-flex;
+}
+
+.webmcp-info__trigger {
+  min-height: var(--target-touch);
+  padding: 0 var(--space-xs);
+  border: 0;
+  background: var(--color-clear);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-rule-2);
+  text-decoration-thickness: var(--rule-hair);
+  text-underline-offset: var(--space-2xs);
+  cursor: help;
+}
+
+.tool-footer .webmcp-info__tooltip {
+  position: absolute;
+  z-index: var(--z-sticky);
+  inset-inline-end: 0;
+  bottom: calc(100% + var(--space-xs));
+  width: min(18rem, calc(100vw - var(--space-md) - var(--space-md)));
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  line-height: var(--lh-snug);
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--offset-active));
+  transition:
+    opacity var(--dur-short) var(--ease-out),
+    transform var(--dur-short) var(--ease-out),
+    visibility 0s linear var(--dur-short);
+  pointer-events: auto;
+}
+
+.webmcp-info:focus-within .webmcp-info__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .wordmark:hover,
   .tool-footer a:hover,
@@ -1576,6 +1631,20 @@ a:visited {
   .workspace-view-tab:hover,
   .scratch-file-tab:hover {
     color: var(--color-accent);
+  }
+
+  .webmcp-info:hover .webmcp-info__trigger {
+    color: var(--color-ink);
+  }
+
+  .webmcp-info:hover .webmcp-info__tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay:
+      850ms,
+      850ms,
+      calc(850ms + var(--dur-short));
   }
 
   .action-button:hover:not(:disabled, [data-state="loading"]) {
@@ -1628,8 +1697,16 @@ a:visited {
   .editor-tab button,
   .workspace-view-tab,
   .scratch-file-tab,
+  .webmcp-info__trigger,
   .new-file-dialog input {
     min-height: 3rem;
+  }
+}
+
+@media (max-width: 28rem) {
+  .webmcp-info {
+    flex: 1 0 100%;
+    justify-content: flex-end;
   }
 }
 
