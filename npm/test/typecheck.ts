@@ -5,6 +5,7 @@ import {
   lilypondDataUrl,
   lilypondVersion,
   lilypondWasmUrl,
+  musicxmlIncludeUrl,
   runtimeEnvironment,
   runtimeManifestUrl,
   runtimeMountOrder,
@@ -18,6 +19,7 @@ const assetUrls: URL[] = [
   lilypondCompiledUrl,
   lilypondDataUrl,
   lilypondWasmUrl,
+  musicxmlIncludeUrl,
   runtimeManifestUrl,
   ...Object.values(runtimeMounts),
 ];

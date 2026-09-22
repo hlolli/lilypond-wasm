@@ -21,6 +21,14 @@ The editor uses the exact published `@hlolli/lilypond-wasm` version in
 The `npm/` directory at the repository root is a release template and does not
 contain the generated Wasm or run-time files.
 
+The build also packs the MusicXML exporter from this checkout's
+`npm/musicxml/` directory. Hosts can send `{type: "musicxml", requestId, source}`
+to `lilypond.worker.js` and read `musicxml: [{name, source}]` in the result.
+This path skips engraving and uses no server-side converter. See
+[export support and limits](../npm/README.md#musicxml-export).
+`bun run test:musicxml-browser` tests this path in Chromium; set `CHROME_PATH`
+to use an installed browser. The editor UI has no MusicXML export button yet.
+
 The default scratchpad has two files. `main.ly` loads `lpcs.ily` and enables
 its Csound score and timeline exports. `lpcs.orc` is the orchestra that plays
 those score events. Its first comment maps LilyPond notes, ties, dynamics, and

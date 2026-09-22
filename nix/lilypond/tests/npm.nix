@@ -6,6 +6,7 @@
   lilypondNpmTarball,
   lib,
   nodejs,
+  python3,
   runCommand,
   typescript,
   wasmtime,
@@ -16,6 +17,7 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
     diffutils
     gnutar
     nodejs
+    python3
     typescript
     wasmtime
   ];
@@ -199,6 +201,12 @@ runCommand "lilypond-wasm-npm-smoke-${lilypondNpmTarball.version}"
 
   package_dir="$PWD/consumer/node_modules/@hlolli/lilypond-wasm"
   check_release_manifest "$package_dir/package.json"
+
+  cp ${../../../npm/test/musicxml.test.mjs} consumer/musicxml.test.mjs
+  cp ${../../../npm/test/read-musicxml.py} consumer/read-musicxml.py
+  LILYPOND_WASM_PACKAGE="$package_dir" \
+    LILYPOND_MUSICXML_INCLUDE="$package_dir/runtime/lilypond/2.27.2/ly" \
+    node --test consumer/musicxml.test.mjs
 
   # Make source fallback fail, while keeping source times valid for the
   # matching bytecode. The render must load the packaged cache to pass.

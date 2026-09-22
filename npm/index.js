@@ -10,6 +10,7 @@ export const lilypondWasmUrl = resolvePackageFile("dist/lilypond.wasm");
 export const lilypondDataUrl = resolvePackageFile(
   `runtime/lilypond/${lilypondVersion}/`,
 );
+export const musicxmlIncludeUrl = new URL("ly/musicxml.ily", lilypondDataUrl);
 export const lilypondCompiledUrl = resolvePackageFile(
   "runtime/lilypond-lib/",
 );

@@ -24,9 +24,10 @@ type RuntimeFilesManifest = {
 };
 
 type RenderRequest = {
-  type: "render";
+  type: "render" | "musicxml";
   requestId: number;
   source: string;
+  exportMusicXML?: boolean;
   inputPath?: string[];
   workspaceRoot?: FileSystemDirectoryHandle;
   openBuffers?: Array<{
@@ -343,6 +344,9 @@ async function render(request: RenderRequest) {
         "-djob-count=1",
         "-dpoint-and-click=#f",
         "-drandom-seed=1",
+        ...(request.type === "musicxml"
+          ? ["-dinclude-settings=musicxml-only.ily"]
+          : request.exportMusicXML ? ["-dinclude-settings=musicxml.ily"] : []),
         "--formats=svg",
         "-I",
         inputDirectory,
@@ -381,17 +385,24 @@ async function render(request: RenderRequest) {
       wasi.getImportObject(),
     );
 
-    postProgress(requestId, "Engraving the score");
+    postProgress(requestId, request.type === "musicxml" ? "Exporting MusicXML" : "Engraving the score");
     const exitCode = await wasi.start(instance);
+    if (exitCode !== 0 && (request.type === "musicxml" || request.exportMusicXML)) {
+      throw new Error(`MusicXML export failed (LilyPond exit ${exitCode}). See the compiler diagnostics.`);
+    }
     const outputEntries = fs.readdirSync("/render-output") as string[];
     const outputFiles = outputEntries
       .filter((name) => /^score(?:-\d+)?\.svg$/.test(name))
       .sort(outputOrder);
 
-    if (outputFiles.length === 0) {
+    if (outputFiles.length === 0 && request.type !== "musicxml") {
       throw new Error(
         `LilyPond exited with code ${exitCode ?? "unknown"} and wrote no SVG.`,
       );
+    }
+    if ((request.type === "musicxml" || request.exportMusicXML)
+        && !outputEntries.some((name) => name.endsWith(".musicxml"))) {
+      throw new Error("LilyPond wrote no MusicXML score.");
     }
 
     const svgs = outputFiles.map((name) =>
@@ -427,6 +438,13 @@ async function render(request: RenderRequest) {
       files: outputFiles,
       svgs,
       scores,
+      musicxml: outputEntries
+        .filter((name) => /^score(?:-\d+)?\.musicxml$/.test(name))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+        .map((name) => ({
+          name,
+          source: String(fs.readFileSync(`/render-output/${name}`, "utf8")),
+        })),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -439,7 +457,7 @@ async function render(request: RenderRequest) {
 }
 
 worker.addEventListener("message", (event: MessageEvent<RenderRequest>) => {
-  if (event.data?.type === "render") {
+  if (event.data?.type === "render" || event.data?.type === "musicxml") {
     void render(event.data);
   }
 });

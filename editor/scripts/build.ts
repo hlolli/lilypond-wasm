@@ -199,6 +199,9 @@ async function buildLilypondRuntimePack() {
     relativePaths.sort();
 
     for (const relativePath of relativePaths) {
+      if (guestRoot === "/lilypond" && ["ly/musicxml.ily", "ly/musicxml-only.ily", "ly/musicxml.scm"].includes(relativePath.split(sep).join("/"))) {
+        continue;
+      }
       const source = resolve(sourceRoot, relativePath);
       const fileBytes = new Uint8Array(await Bun.file(source).arrayBuffer());
       const guestPath = `${guestRoot}/${relativePath.split(sep).join("/")}`;
@@ -211,6 +214,15 @@ async function buildLilypondRuntimePack() {
       packParts.push(fileBytes);
       offset += fileBytes.byteLength;
     }
+  }
+
+  // Use this checkout's exporter even while the installed compiler package
+  // predates it. The Nix/npm build installs these same files in this mount.
+  for (const name of ["musicxml.ily", "musicxml-only.ily", "musicxml.scm"]) {
+    const bytes = new Uint8Array(await Bun.file(resolve(repositoryRoot, "npm/musicxml", name)).arrayBuffer());
+    runtimeFiles.push({ guestPath: `/lilypond/ly/${name}`, offset, length: bytes.byteLength });
+    packParts.push(bytes);
+    offset += bytes.byteLength;
   }
 
   const pack = new Uint8Array(offset);
@@ -411,6 +423,7 @@ async function copyEditorSource() {
     "flake.lock",
     "flake.nix",
     "nix",
+    "npm/musicxml",
     "third-party",
   ]);
   const treeState = status === null
@@ -437,6 +450,14 @@ async function copyEditorSource() {
       resolve(repositoryRoot, "nix"),
       resolve(sourceRoot, "nix"),
       includeRepositorySource,
+    ),
+    copyTree(
+      resolve(repositoryRoot, "npm/musicxml"),
+      resolve(sourceRoot, "npm/musicxml"),
+    ),
+    copyFile(
+      resolve(repositoryRoot, "npm/README.md"),
+      resolve(sourceRoot, "npm/README.md"),
     ),
     copyTree(
       resolve(repositoryRoot, "third-party/licenses"),

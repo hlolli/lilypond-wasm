@@ -65,6 +65,58 @@ The plugin writes `.lpcs.json` and `.sco` files beside the LilyPond output.
 It prepares Csound score data, but this package does not include or run
 Csound.
 
+## MusicXML export
+
+Include `musicxml.ily`, or pass `-dinclude-settings=musicxml.ily` to LilyPond:
+
+```lilypond
+\include "musicxml.ily"
+melody = \relative c' { \time 3/4 c4\p d e | f2. }
+\score { \new Staff \melody }
+```
+
+The exporter writes `<output>.musicxml`, then `<output>-1.musicxml` and so on
+for more scores. `musicxmlIncludeUrl` points to the bundled include. It uses
+LilyPond's resolved music tree, so variables, includes, relative pitch, and
+transposition use the compiler's rules. No Python parser or server is needed.
+
+The initial subset covers pitched notes, chords, rests, skips, voices, piano
+staves, exact tuplet durations, ties, simple repeats, pickups, meter changes,
+major/minor keys, fixed tempos, common dynamics, slurs, articulations, and
+sustain pedal marks. It omits page layout and headers. It exports written
+events, not a predicted performance. A PianoStaff or GrandStaff becomes one
+MusicXML part; other staves become separate parts.
+
+This is not a full MusicXML backend. Grace notes, repeat alternatives, nested repeats,
+tremolos, cross-staff changes, microtones, transposing clefs, custom context
+functions/settings, and music outside parallel part contexts fail with a
+`MusicXML export:` error. Do not use files from a failed compiler run. Plain
+SVG rendering does not enable this exporter and keeps its usual behavior.
+
+For model input without engraving, use `musicxml-only.ily`. The editor worker
+accepts `{type: "musicxml", requestId, source}` and returns
+`musicxml: [{name, source}]` with empty SVG arrays. It skips page layout.
+For both outputs, set `exportMusicXML: true` on a `render` request.
+A failed export returns
+an error, never an apparently successful XML result. The editor UI does not
+yet expose an export button.
+
+Run the export tests with a native compiler or the built WASM package:
+
+```sh
+node --test npm/test/musicxml.test.mjs
+LILYPOND_WASM_PACKAGE=/path/to/package node --test npm/test/musicxml.test.mjs
+cd editor
+bun run build
+bun run test:musicxml-browser
+```
+
+Native tests need `lilypond` and Python 3. WASM tests also need `wasmtime`.
+Set `LILYPOND_BIN`, `WASMTIME_BIN`, or `CHROME_PATH` for non-default locations.
+The browser test needs Playwright's Chromium or `CHROME_PATH`. Optional
+`ANALYZER_BIN` and `MUSICXML_SCHEMA` checks import each result through the
+analyzer and validate it with `xmllint`, respectively.
+
 ## Licence and source
 
 The JavaScript wrapper and LilyPond Wasm are GPL-3.0-or-later. Bundled data

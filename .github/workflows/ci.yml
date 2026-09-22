@@ -43,9 +43,21 @@ jobs:
         working-directory: editor
         run: bun run typecheck
 
+      - name: Test MusicXML export with native LilyPond
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lilypond
+          node --test npm/test/musicxml.test.mjs
+
       - name: Build editor
         working-directory: editor
         run: bun run build
+
+      - name: Test MusicXML export in Chromium
+        working-directory: editor
+        run: |
+          bunx playwright install --with-deps chromium
+          bun run test:musicxml-browser
 
       - name: Check editor output
         shell: bash

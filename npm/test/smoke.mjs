@@ -7,6 +7,7 @@ import {
   lilypondDataUrl,
   lilypondVersion,
   lilypondWasmUrl,
+  musicxmlIncludeUrl,
   runtimeEnvironment,
   runtimeManifestUrl,
   runtimeMountOrder,
@@ -47,6 +48,9 @@ for (const [guestPath, hostUrl] of Object.entries(runtimeMounts)) {
 
 await Promise.all([
   stat(lilypondWasmUrl),
+  stat(musicxmlIncludeUrl),
+  stat(new URL("musicxml-only.ily", musicxmlIncludeUrl)),
+  stat(new URL("musicxml.scm", musicxmlIncludeUrl)),
   stat(new URL("ly/init.ly", lilypondDataUrl)),
   stat(new URL("ccache/lily/lily.go", lilypondCompiledUrl)),
   stat(new URL("ice-9/boot-9.go", guileCompiledUrl)),

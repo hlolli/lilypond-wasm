@@ -4,6 +4,7 @@ export declare const wasmMetadataSection: "lilypond-wasm.metadata";
 
 export declare const lilypondWasmUrl: URL;
 export declare const lilypondDataUrl: URL;
+export declare const musicxmlIncludeUrl: URL;
 export declare const lilypondCompiledUrl: URL;
 export declare const guileCompiledUrl: URL;
 export declare const runtimeManifestUrl: URL;

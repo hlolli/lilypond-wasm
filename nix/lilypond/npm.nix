@@ -98,6 +98,8 @@ in
           chmod -R u+w \
             "$out/runtime/lilypond" \
             "$out/runtime/lilypond-lib"
+          cp musicxml/musicxml.ily musicxml/musicxml-only.ily musicxml/musicxml.scm \
+            "$out/runtime/lilypond/${lilypond.version}/ly/"
           cp -R \
             ${lilypondCsoundScorePlugin}/share/lilypond/${lilypond.version}/. \
             "$out/runtime/lilypond/${lilypond.version}/"
@@ -138,6 +140,8 @@ in
 
           test -s "$out/dist/lilypond.wasm"
           test -s "$out/runtime/lilypond/${lilypond.version}/ly/init.ly"
+          test -s "$out/runtime/lilypond/${lilypond.version}/ly/musicxml.ily"
+          test -s "$out/runtime/lilypond/${lilypond.version}/ly/musicxml.scm"
           test -s "$out/runtime/lilypond/${lilypond.version}/ly/lpcs.ily"
           test -s \
             "$out/runtime/lilypond/${lilypond.version}/scm/lpcs/core.scm"

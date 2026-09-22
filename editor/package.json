@@ -13,6 +13,7 @@
     "dev": "bun run build && bun scripts/serve.ts",
     "preview": "bun scripts/serve.ts",
     "test": "bun test --path-ignore-patterns='dist/**'",
+    "test:musicxml-browser": "bun scripts/test-musicxml-browser.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
+    "playwright": "1.63.0",
     "typescript": "7.0.2"
   }
 }
