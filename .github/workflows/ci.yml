@@ -59,6 +59,10 @@ jobs:
           bunx playwright install --with-deps chromium
           bun run test:musicxml-browser
 
+      - name: Test Csound WAV output in Chromium
+        working-directory: editor
+        run: bun run test:csound-browser
+
       - name: Test WebMCP and Csound playback in Chromium
         working-directory: editor
         run: bun run test:webmcp-browser

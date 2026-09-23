@@ -1,10 +1,11 @@
 import type { CsoundObj } from "@csound/browser";
+import { pcm16ToWave } from "./wave";
 import {
   createPreloadedCsound,
   type CsoundCreateOptions,
   type CsoundFactory,
 } from "./csound-module";
-import { createPlaybackCsd, PLAYBACK_WAV_FILE } from "./playback-csd";
+import { createPlaybackCsd, PLAYBACK_PCM_FILE } from "./playback-csd";
 
 export type { CsoundCreateOptions } from "./csound-module";
 
@@ -68,19 +69,6 @@ async function settleWithTimeout(promise: Promise<unknown>) {
     if (timer !== undefined) {
       clearTimeout(timer);
     }
-  }
-}
-
-function assertWaveFile(bytes: Uint8Array) {
-  const ascii = (offset: number, length: number) =>
-    String.fromCharCode(...bytes.subarray(offset, offset + length));
-
-  if (
-    bytes.byteLength < 44 ||
-    ascii(0, 4) !== "RIFF" ||
-    ascii(8, 4) !== "WAVE"
-  ) {
-    throw new Error("Csound returned an unreadable WAV file.");
   }
 }
 
@@ -195,6 +183,11 @@ export async function renderScoreToWav(
     }
 
     await raceWithAbort(rendered, operation.signal);
+    // Read the actual format before reset clears the orchestra settings.
+    const [sampleRate, channels] = await raceWithAbort(
+      Promise.all([csound.getSr(), csound.getNchnls()]),
+      operation.signal,
+    );
     const resetResult = await raceWithAbort(
       resetOnce(),
       operation.signal,
@@ -203,11 +196,12 @@ export async function renderScoreToWav(
       throw new Error(`Csound could not finalize the WAV file (code ${resetResult}).`);
     }
     const bytes = await raceWithAbort(
-      csound.fs.readFile(PLAYBACK_WAV_FILE),
+      csound.fs.readFile(PLAYBACK_PCM_FILE),
       operation.signal,
     );
-    assertWaveFile(bytes);
-    return bytes.slice();
+    // @csound/browser beta31 prepends WAV header rewrites in its WASI
+    // filesystem. Raw PCM avoids those seeks and the resulting startup click.
+    return pcm16ToWave(bytes, sampleRate, channels);
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener("abort", handleCallerAbort);

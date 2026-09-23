@@ -4,23 +4,18 @@ import {
   renderScoreToWav,
   type CsoundCreateOptions,
 } from "./csound-renderer";
-import { PLAYBACK_WAV_FILE } from "./playback-csd";
+import { PLAYBACK_PCM_FILE } from "./playback-csd";
 import { STARTER_ORCHESTRA } from "../starter-orchestra";
 
 const score =
   "i 17.0001 0 1 1000 1 1 1 60 60 -1 0.7 0.7 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 \"id=1\"\ne";
 
-function waveFile() {
-  const bytes = new Uint8Array(44);
-  bytes.set(new TextEncoder().encode("RIFF"), 0);
-  bytes.set(new TextEncoder().encode("WAVE"), 8);
-  return bytes;
-}
-
 class FakeCsound {
   readonly calls: string[] = [];
   readonly listeners = new Map<PublicEvents, Set<(...args: unknown[]) => void>>();
-  readonly output = waveFile();
+  readonly output = new Uint8Array([0, 0, 0, 0]);
+  async getSr() { return 48000; }
+  async getNchnls() { return 2; }
   compileResult = 0;
   startResult = 0;
   resetResult = 0;
@@ -90,7 +85,7 @@ class FakeCsound {
 }
 
 describe("renderScoreToWav", () => {
-  test("uses the worker backend and returns a copied WAV file", async () => {
+  test("uses the worker backend and wraps copied PCM in a WAV file", async () => {
     const fake = new FakeCsound();
     const messages: string[] = [];
     let createOptions: CsoundCreateOptions | undefined;
@@ -113,11 +108,12 @@ describe("renderScoreToWav", () => {
       "compile",
       "start",
       "reset",
-      `read:${PLAYBACK_WAV_FILE}`,
+      `read:${PLAYBACK_PCM_FILE}`,
       "terminate",
     ]);
     expect(messages).toEqual(["rendering score"]);
-    expect(result).toEqual(fake.output);
+    expect(result.subarray(44)).toEqual(fake.output);
+    expect(new DataView(result.buffer).getUint32(24, true)).toBe(48000);
     expect(result).not.toBe(fake.output);
   });
 

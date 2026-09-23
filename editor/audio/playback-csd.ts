@@ -1,4 +1,4 @@
-export const PLAYBACK_WAV_FILE = "lpcs-playback.wav";
+export const PLAYBACK_PCM_FILE = "lpcs-playback.pcm";
 
 const instrument17Pattern = /^\s*i\s+17(?:\.\d+)?(?:\s|$)/m;
 const orchestraInstrument17Pattern = /^\s*instr\s+17(?:\.\d+)?(?:\s|$)/mi;
@@ -34,7 +34,7 @@ export function createPlaybackCsd(score: string, orchestra: string) {
 
   return `<CsoundSynthesizer>
 <CsOptions>
--d -m128 -W -s -o${PLAYBACK_WAV_FILE}
+-d -m128 -h -s -o${PLAYBACK_PCM_FILE}
 </CsOptions>
 <CsInstruments>
 ${cleanOrchestra}

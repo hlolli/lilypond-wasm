@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { STARTER_ORCHESTRA } from "../starter-orchestra";
-import { createPlaybackCsd, PLAYBACK_WAV_FILE } from "./playback-csd";
+import { createPlaybackCsd, PLAYBACK_PCM_FILE } from "./playback-csd";
 
 const score = `C 0
 t 0 60
@@ -12,7 +12,7 @@ describe("createPlaybackCsd", () => {
   test("wraps an instrument 17 score in the chosen orchestra", () => {
     const csd = createPlaybackCsd(score, STARTER_ORCHESTRA);
 
-    expect(csd).toContain(`-o${PLAYBACK_WAV_FILE}`);
+    expect(csd).toContain(`-o${PLAYBACK_PCM_FILE}`);
     expect(csd).toContain("instr 17");
     expect(csd).toContain("cpsmidinn(kPitch)");
     expect(csd).toContain("if p10 > 0 then");

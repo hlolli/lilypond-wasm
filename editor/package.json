@@ -14,6 +14,7 @@
     "preview": "bun scripts/serve.ts",
     "test": "bun test --path-ignore-patterns='dist/**'",
     "test:musicxml-browser": "bun scripts/test-musicxml-browser.ts",
+    "test:csound-browser": "bun scripts/test-csound-browser.ts",
     "test:webmcp-browser": "bun scripts/test-webmcp-browser.ts",
     "typecheck": "tsc --noEmit"
   },

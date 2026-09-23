@@ -116,6 +116,11 @@ try {
   const peak = await page.evaluate(async () => {
     const audio = document.querySelector<HTMLAudioElement>("#score-audio")!;
     const bytes = await (await fetch(audio.src)).arrayBuffer();
+    const header = new DataView(bytes);
+    if (header.getUint32(4, true) !== bytes.byteLength - 8 ||
+        header.getUint32(40, true) !== bytes.byteLength - 44) {
+      throw new Error("Csound WAV header does not match its audio length");
+    }
     const context = new OfflineAudioContext(2, 1, 48_000);
     const decoded = await context.decodeAudioData(bytes);
     let peak = 0;
