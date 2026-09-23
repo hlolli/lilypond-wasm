@@ -7,6 +7,10 @@ describe("starter Csound orchestra", () => {
     expect(STARTER_ORCHESTRA).toContain("cpsmidinn(kPitch)");
     expect(STARTER_ORCHESTRA).toContain("if p10 > 0 then");
     expect(STARTER_ORCHESTRA).toContain("iTie tival");
+    expect(STARTER_ORCHESTRA).toContain("giPiano hlolli_wg_piano_create");
+    expect(STARTER_ORCHESTRA).toContain("aModelLeft, aModelRight hlolli_wg_piano");
+    expect(STARTER_ORCHESTRA).toContain("tigoto PianoReady");
+    expect(STARTER_ORCHESTRA).toContain("hlolli_wg_piano_resonance giPiano");
   });
 
   test("teaches the fixed LilyPond score mapping", () => {

@@ -4,6 +4,9 @@ nchnls = 2
 0dbfs = 1
 seed 17
 giSine ftgen 0, 0, 16384, 10, 1
+giPiano hlolli_wg_piano_create
+gkPedal init 0
+schedule 18, 0, -1
 
 ; LilyPond writes each LPCS note as a 28-field event for instr 17.
 ; Pitched notes put MIDI pitch in p8/p9 and set p10 to -1. Drums set
@@ -14,6 +17,9 @@ giSine ftgen 0, 0, 16384, 10, 1
 ; them to seconds before instr 17 runs. A negative p3 continues a tie.
 ; Tied parts share the same fractional p1; tival reports later parts.
 ; p28 holds percent-encoded note metadata for tools; this orchestra ignores it.
+; Pitched notes use the bundled hlolli_wg_piano model. Instrument 18 keeps
+; one shared resonance output alive. Set gkPedal from 0 (up) to 0.82 (down).
+; Piano controls and source: https://github.com/hlolli/hlolli_wg_piano
 
 instr 17
   iDuration = abs(p3)
@@ -26,9 +32,9 @@ instr 17
     iAttack = 0.004
   endif
 
-  iRelease = 0.08
+  iRelease = 2.6
   if p18 > 0 then
-    iRelease = 0.16
+    iRelease = 3.0
   endif
   xtratim iRelease
 
@@ -68,9 +74,16 @@ instr 17
   else
     kPitch linseg p8, iDuration, p9
     kFrequency = cpsmidinn(kPitch)
-    aFundamental oscili 0.16, kFrequency, giSine, iPhase
-    aOvertone oscili 0.035, kFrequency * 2, giSine, iPhase
-    aSignal = (aFundamental + aOvertone) * aEnvelope * kLevel
+    kReleased release
+    kTrigger = (kReleased == 0 ? kLevel : 0)
+    kTail linsegr 1, 0.01, 1, iRelease, 0
+    ; A tied segment must keep its string rails and hammer state.
+    tigoto PianoReady
+    aModelLeft, aModelRight hlolli_wg_piano \\
+        kTrigger, kFrequency, 0.43, 0.12, 0.70, \\
+        0.42, 0.60, 0.72, 0, gkPedal, giPiano
+PianoReady:
+    aSignal = 0.5 * (aModelLeft + aModelRight) * kTail * 0.7
   endif
 
   iGate = p13
@@ -87,5 +100,12 @@ instr 17
 
   aLeft, aRight pan2 aSignal, kPan
   outs aLeft, aRight
+endin
+
+instr 18
+  xtratim 2.6
+  kTail linsegr 1, 0.01, 1, 2.6, 0
+  aWetLeft, aWetRight hlolli_wg_piano_resonance giPiano, 0.72, gkPedal
+  outs 0.25 * aWetLeft * kTail, 0.25 * aWetRight * kTail
 endin
 `;

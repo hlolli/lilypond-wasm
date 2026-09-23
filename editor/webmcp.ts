@@ -20,7 +20,9 @@ export interface ModelContextLike {
 }
 
 export interface WebMcpEditorApi {
-  readWorkspace: () => ToolOutput;
+  readWorkspace: () => ToolOutput | Promise<ToolOutput>;
+  searchDocumentation: (query: string, limit: number) => Promise<ToolOutput>;
+  readDocumentation: (id: string, startLine: number, lineCount: number) => Promise<ToolOutput>;
   updateLilypond: (source: string, baseRevision: number) => ToolOutput;
   renderScore: () => Promise<ToolOutput>;
   cancelRender: () => ToolOutput;
@@ -223,12 +225,33 @@ const positionProperty = {
   description: "Playback position in seconds",
 };
 
+function documentInput(input: ToolInput, allowed: string[]) {
+  if (Object.keys(input).some(key => !allowed.includes(key))) {
+    throw new WebMcpActionError("invalid_input", "Unknown documentation field");
+  }
+}
+
+function documentText(value: unknown, name: string, maximum: number) {
+  if (typeof value !== "string" || !value.trim() || value.length > maximum) {
+    throw new WebMcpActionError("invalid_input", `${name} must contain 1 to ${maximum} characters`);
+  }
+  return value.trim();
+}
+
+function documentInteger(value: unknown, name: string, fallback: number, maximum = Number.MAX_SAFE_INTEGER) {
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > maximum) {
+    throw new WebMcpActionError("invalid_input", `${name} must be a whole number from 1 to ${maximum}`);
+  }
+  return value;
+}
+
 function createTools(api: WebMcpEditorApi): WebMcpTool[] {
   return [
     {
       name: "read_workspace",
       description:
-        "Read the LilyPond source, revision, render output, export state, and playback state. Call this before changing the source.",
+        "Read the LilyPond source, current Csound orchestra, revision, render and playback state, runtime versions, default piano, and documentation index. Call this before edits. Use search_documentation and read_documentation for piano controls, LPCS export rules, notation help, and Csound opcode references.",
       inputSchema: noInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -239,6 +262,37 @@ function createTools(api: WebMcpEditorApi): WebMcpTool[] {
         () => api.readWorkspace(),
         emptyInput,
       ),
+    },
+    {
+      name: "search_documentation",
+      description: "Search the bundled editor, hlolli_wg_piano, LilyPond-to-Csound (LPCS), timeline, MusicXML, and Csound opcode references. Returns excerpts with document ids and line numbers plus queries and URLs for the official LilyPond and Csound manuals. Use exact terms such as csoundExportOptions, pedal, or linsegr.",
+      inputSchema: {
+        type: "object", properties: {
+          query: { type: "string", minLength: 1, maxLength: 200 },
+          limit: { type: "integer", minimum: 1, maximum: 20, default: 8 },
+        }, required: ["query"], additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: resultObject("search_documentation", input => {
+        documentInput(input, ["query", "limit"]);
+        return api.searchDocumentation(documentText(input.query, "query", 200), documentInteger(input.limit, "limit", 8, 20));
+      }),
+    },
+    {
+      name: "read_documentation",
+      description: "Read a bundled reference by document_id from read_workspace or search_documentation. Use start_line and line_count to read further. For online-only manuals, returns the official URL to open with your browser tool.",
+      inputSchema: {
+        type: "object", properties: {
+          document_id: { type: "string", minLength: 1, maxLength: 80 },
+          start_line: { type: "integer", minimum: 1, default: 1 },
+          line_count: { type: "integer", minimum: 1, maximum: 160, default: 80 },
+        }, required: ["document_id"], additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+      execute: resultObject("read_documentation", input => {
+        documentInput(input, ["document_id", "start_line", "line_count"]);
+        return api.readDocumentation(documentText(input.document_id, "document_id", 80), documentInteger(input.start_line, "start_line", 1), documentInteger(input.line_count, "line_count", 80, 160));
+      }),
     },
     {
       name: "update_lilypond",

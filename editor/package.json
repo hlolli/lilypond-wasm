@@ -14,6 +14,7 @@
     "preview": "bun scripts/serve.ts",
     "test": "bun test --path-ignore-patterns='dist/**'",
     "test:musicxml-browser": "bun scripts/test-musicxml-browser.ts",
+    "test:webmcp-browser": "bun scripts/test-webmcp-browser.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,7 +33,9 @@
     "svg-to-pdfkit": "0.1.8"
   },
   "devDependencies": {
+    "@csound/wasm-bin": "7.0.0-beta21",
     "@types/bun": "1.3.14",
+    "@yowasp/clang": "22.0.0-git20542-10",
     "playwright": "1.63.0",
     "typescript": "7.0.2"
   }

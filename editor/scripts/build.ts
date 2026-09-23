@@ -2,6 +2,7 @@ import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import { buildPiano } from "./build-piano";
 
 type PackageRuntimeManifest = {
   lilypondVersion: string;
@@ -1434,8 +1435,18 @@ await assertLazyPdfChunks(result.metafile);
 
 await buildLilypondRuntimePack();
 
+const opcodeDocs = await Bun.file(resolve(repositoryRoot, "third-party/sources/codemirror-lang-csound/src/builtin-opcodes.json")).json() as Record<string, { synopsis: string[]; short_desc: string }>;
+await Bun.write(resolve(outputRoot, "docs/csound-opcodes.md"),
+  "# Csound opcode reference\n\nFrom the bundled CodeMirror Csound reference (GFDL-1.2-or-later). See ../licenses/npm/@hlolli/codemirror-lang-csound/CSOUND_MANUAL_COPYING.\n\n" +
+  Object.entries(opcodeDocs).map(([name, doc]) => `## ${name}\n\n${doc.short_desc}\n\n${doc.synopsis.join("\n")}\n\nhttps://csound.com/docs/manual/${encodeURIComponent(name)}.html\n`).join("\n"));
+
 await Promise.all([
   copyCsoundNotices(),
+  buildPiano(outputRoot),
+  copyTree(resolve(projectRoot, "plugins/hlolli_wg_piano"), resolve(outputRoot, "plugins/hlolli_wg_piano")),
+  copyTree(resolve(projectRoot, "docs"), resolve(outputRoot, "docs")),
+  copyFile(resolve(repositoryRoot, "npm/README.md"), resolve(outputRoot, "docs/wasm-api.md")),
+  copyFile(resolve(csoundBrowserPackageRoot, "README.md"), resolve(outputRoot, "docs/csound-browser.md")),
   copyBundledPackageNotices(result.metafile),
   copyRuntimeNoticeSource(),
   copyEditorSource(),

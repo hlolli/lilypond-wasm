@@ -12,5 +12,10 @@ describe("default LilyPond source", () => {
     expect(defaultSource).toContain("\\csoundUnfoldForExport {");
     expect(defaultSource).toContain("\\score {");
     expect(defaultSource).toContain("\\layout { }");
+    expect(defaultSource).toContain("\\new PianoStaff");
+    expect(defaultSource).toContain('\\new Staff = "right"');
+    expect(defaultSource).toContain('\\new Staff = "left"');
+    expect(defaultSource).toContain('\\clef bass');
+    expect(defaultSource).toContain('hlolli_wg_piano');
   });
 });

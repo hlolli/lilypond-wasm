@@ -31,6 +31,8 @@ function fakeApi(): FakeApiCapture {
   let reads = 0;
 
   const api: WebMcpEditorApi = {
+    searchDocumentation: async (query, limit) => ({ query, limit, matches: [] }),
+    readDocumentation: async (id, startLine, lineCount) => ({ document_id: id, start_line: startLine, line_count: lineCount }),
     readWorkspace: () => {
       reads += 1;
       return { ...workspace };
@@ -98,6 +100,21 @@ function toolNamed(tools: CapturedTool[], name: string): CapturedTool {
 }
 
 describe("WebMCP tools", () => {
+  test("provides bounded read-only documentation tools", async () => {
+    const capture = fakeContext();
+    await registerWebMcpTools(fakeApi().api, capture.context);
+    const search = toolNamed(capture.tools, "search_documentation");
+    const read = toolNamed(capture.tools, "read_documentation");
+    expect(await search.execute({ query: "pedal" })).toMatchObject({ ok: true, query: "pedal", limit: 8 });
+    expect(await read.execute({ document_id: "piano" })).toMatchObject({ ok: true, document_id: "piano", start_line: 1, line_count: 80 });
+    for (const input of [{ query: " " }, { query: "pedal", limit: 21 }, { query: "pedal", url: "https://example.com" }]) {
+      expect(await search.execute(input)).toMatchObject({ ok: false, error: { code: "invalid_input" } });
+    }
+    for (const input of [{ document_id: "piano", start_line: 0 }, { document_id: "piano", line_count: 161 }]) {
+      expect(await read.execute(input)).toMatchObject({ ok: false, error: { code: "invalid_input" } });
+    }
+  });
+
   test("stays optional when the page has no WebMCP API", async () => {
     const registration = await registerWebMcpTools(fakeApi().api, undefined);
 
@@ -115,6 +132,8 @@ describe("WebMCP tools", () => {
 
     expect(capture.tools.map((tool) => tool.name)).toEqual([
       "read_workspace",
+      "search_documentation",
+      "read_documentation",
       "update_lilypond",
       "render_score",
       "cancel_render",
@@ -126,8 +145,8 @@ describe("WebMCP tools", () => {
       "stop_playback",
       "seek_playback",
     ]);
-    expect(registration).toMatchObject({ supported: true, toolCount: 11 });
-    expect(capture.signals).toHaveLength(11);
+    expect(registration).toMatchObject({ supported: true, toolCount: 13 });
+    expect(capture.signals).toHaveLength(13);
     expect(new Set(capture.signals).size).toBe(1);
     expect(capture.signals.every((signal) => !signal.aborted)).toBeTrue();
 
@@ -345,6 +364,8 @@ describe("WebMCP tools", () => {
 
     expect(names).toEqual([
       "read_workspace",
+      "search_documentation",
+      "read_documentation",
       "update_lilypond",
       "render_score",
     ]);

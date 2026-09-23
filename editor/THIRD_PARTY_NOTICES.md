@@ -22,6 +22,18 @@ The player uses `@csound/browser@7.0.0-beta31` under the
 run-time package credits are in the
 [Csound third-party list](licenses/csound-browser/THIRD_PARTY.md).
 
+## Piano model and LPCS references
+
+The default instrument uses `hlolli_wg_piano` at commit
+`0ea937da3d582e586d5620d99b50f5f5c91d34dd` under the
+[MIT licence](plugins/hlolli_wg_piano/LICENSE). Its pinned C source, control
+reference, and build manifest ship beside the WASM plugin. The editor source
+snapshot includes the build script and exact compiler and SDK dependencies.
+
+The bundled LPCS reference files come from commit
+`26e16a60fadb885aefce9f62a8eb7143a7cef7e0` under its
+[GPL-3.0 licence](docs/lpcs/LICENSE).
+
 ## Csound CodeMirror mode
 
 Csound source editing uses `@hlolli/codemirror-lang-csound@1.0.0-alpha11`,

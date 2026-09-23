@@ -29,12 +29,20 @@ This path skips engraving and uses no server-side converter. See
 `bun run test:musicxml-browser` tests this path in Chromium; set `CHROME_PATH`
 to use an installed browser. The editor UI has no MusicXML export button yet.
 
-The default scratchpad has two files. `main.ly` loads `lpcs.ily` and enables
-its Csound score and timeline exports. `lpcs.orc` is the orchestra that plays
+The default scratchpad has two files. `main.ly` contains *Evening miniature*,
+an eight-bar piece for two piano staves. It loads `lpcs.ily` and enables
+Csound score and timeline exports. `lpcs.orc` is the orchestra that plays
 those score events. Its first comment maps LilyPond notes, ties, dynamics, and
 drums to Csound p-fields for users who know LilyPond better than Csound. The
 Csound tab has syntax colour, completion, and opcode help from
 `@hlolli/codemirror-lang-csound`.
+
+Pitched notes use the bundled `hlolli_wg_piano` model with its `generic_2018`
+profile, one shared piano handle, and one resonance instrument. The build
+compiles its pinned C source under `plugins/hlolli_wg_piano/` with the locked
+Csound SDK and YoWASP Clang packages. Playback loads the resulting WASM from
+the same site; it needs no samples or compiler download. `gkPedal` controls
+the pedal. Existing folder orchestras remain editable and take precedence.
 
 Play reads the current `lpcs.orc` edits, renders the `.sco` file to audio, and
 then follows the timeline with a cursor over tagged notes and rests in the SVG
@@ -58,6 +66,14 @@ For local Chrome use:
 2. Enable WebMCP and relaunch Chrome.
 3. Open the editor in a WebMCP browser agent.
 
+`read_workspace` includes the current orchestra, runtime versions, default
+piano, playback limits, and a documentation index. `search_documentation`
+searches local references and Csound opcode signatures; `read_documentation`
+reads them by document id and line range. Search results also give links and
+queries for the official LilyPond and Csound manuals. The bundled LPCS docs
+match the published runtime, which uses `.sco` playback and predates LPCS's
+direct JSON playback API.
+
 The tools can read and replace the current LilyPond source, render or cancel a
 render, export SVG or PDF files, and control score playback. `play_score`
 starts at zero unless it receives `position_seconds`. Separate tools resume,
@@ -72,6 +88,13 @@ does the same, so render again before exporting or playing it.
 
 WebMCP runs only in the open tab. The page does not send source to a model by
 itself, but a browser agent can read source when asked to use these tools.
+
+After building, run `bun run test:webmcp-browser` to check all thirteen tools
+through Chromium's native WebMCP API. The check covers LPCS score and timeline
+output, Csound audio, playback, downloads, stale edits, and cancellation. It
+holds the Csound module load until Play starts to catch first-play failures.
+Set `CHROME_PATH` to use an installed Chrome, or `WEBMCP_TEST_URL` to check a
+deployed editor in a fresh browser session.
 
 The interface includes Lekton by the Accademia di Belle Arti di Urbino. The
 font is available under the SIL Open Font License 1.1, whose full text is

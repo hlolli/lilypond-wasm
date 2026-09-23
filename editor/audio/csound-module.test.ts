@@ -31,7 +31,7 @@ describe("CsoundModuleLoader", () => {
     expect(await created).toBeDefined();
   });
 
-  test("shares a pending preload and asks for another Play attempt", async () => {
+  test("waits for a pending preload on the first Play attempt", async () => {
     let resolveModule:
       | ((module: { default: CsoundFactory }) => void)
       | undefined;
@@ -45,11 +45,12 @@ describe("CsoundModuleLoader", () => {
     });
 
     const preload = loader.preload();
-    expect(() => loader.create(createOptions)).toThrow("press Play again");
+    const created = loader.create(createOptions);
     expect(importCalls).toBe(1);
 
     resolveModule?.({ default: factory });
     await preload;
+    expect(await created).toBeDefined();
     expect(await loader.create(createOptions)).toBeDefined();
   });
 

@@ -78,6 +78,7 @@ export class AudioTransport {
   pause() {
     if (this.#state === "playing") {
       this.audio.pause();
+      this.#setState("paused");
     }
   }
 
@@ -182,7 +183,7 @@ export class AudioTransport {
   };
 
   #handlePause = () => {
-    if (!this.#stopping && this.#state === "playing") {
+    if (!this.#stopping && this.audio.paused && this.#state === "playing") {
       this.#setState("paused");
     }
   };

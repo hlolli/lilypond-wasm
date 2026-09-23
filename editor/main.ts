@@ -27,6 +27,7 @@ import {
 } from "./pdf/svg-page";
 import { defaultSource } from "./starter-source";
 import { STARTER_ORCHESTRA } from "./starter-orchestra";
+import { documentationContext, EditorDocumentation } from "./documentation";
 import {
   registerWebMcpTools,
   WebMcpActionError,
@@ -1701,7 +1702,16 @@ function renderedOutputIsCurrent() {
   return renderedInputFingerprint === renderInputFingerprint(snapshot, context);
 }
 
-function readWebMcpWorkspace(): ActionResult {
+const editorDocumentation = new EditorDocumentation(document.baseURI);
+
+async function readWebMcpWorkspace(): Promise<ActionResult> {
+  let orchestra: ActionResult;
+  try {
+    const current = await workspaceController?.getPlaybackOrchestra();
+    orchestra = { source: current?.source ?? STARTER_ORCHESTRA, file_name: current?.displayPath ?? "built-in lpcs.orc", fallback: current?.fallback ?? true };
+  } catch (error) {
+    orchestra = { source: null, error: error instanceof Error ? error.message : String(error) };
+  }
   const sourceDocument = currentLilyPondDocument();
   const renderState = activeRequestId !== null
     ? "rendering"
@@ -1713,6 +1723,8 @@ function readWebMcpWorkspace(): ActionResult {
     ? "stale"
     : "ready";
   return {
+    ...documentationContext(document.baseURI),
+    orchestra,
     source: sourceDocument?.source ?? null,
     file_name: sourceDocument?.displayPath ?? null,
     workspace_mode: sourceDocument?.mode ?? null,
@@ -1792,6 +1804,8 @@ async function setupWebMcp() {
     currentLilyPondDocument();
     webMcpRegistration = await registerWebMcpTools({
       readWorkspace: readWebMcpWorkspace,
+      searchDocumentation: (query, limit) => editorDocumentation.search(query, limit),
+      readDocumentation: (id, startLine, lineCount) => editorDocumentation.read(id, startLine, lineCount),
       updateLilypond: updateLilyPondFromWebMcp,
       renderScore,
       cancelRender: cancelRenderForWebMcp,

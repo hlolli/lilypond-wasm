@@ -1,0 +1,9 @@
+{
+  "name": "hlolli_wg_piano",
+  "revision": "0ea937da3d582e586d5620d99b50f5f5c91d34dd",
+  "repository": "https://github.com/hlolli/hlolli_wg_piano",
+  "source_sha256": "7048c5c8c2a9a86f14dfdf7e5dd3359fb00516c4bf20467acf9e693d7df28674",
+  "csound_browser": "7.0.0-beta31",
+  "csound_sdk": "7.0.0-beta21",
+  "compiler": "@yowasp/clang@22.0.0-git20542-10"
+}

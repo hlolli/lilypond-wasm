@@ -14,16 +14,33 @@ export type CsoundModuleImporter = () => Promise<{
   default: CsoundFactory;
 }>;
 
-const loadingMessage =
-  "Csound is still loading. Wait a moment, then press Play again.";
-
 export class CsoundModuleLoader {
   #factory: CsoundFactory | null = null;
   #pending: Promise<CsoundFactory> | null = null;
   readonly #importModule: CsoundModuleImporter;
 
   constructor(
-    importModule: CsoundModuleImporter = () => import("@csound/browser"),
+    importModule: CsoundModuleImporter = async () => {
+      const [module, response] = await Promise.all([
+        import("@csound/browser"),
+        fetch(new URL("./plugins/hlolli_wg_piano.wasm", document.baseURI)),
+      ]);
+      if (!response.ok) {
+        throw new Error(`Could not load hlolli_wg_piano (HTTP ${response.status}).`);
+      }
+      const piano = await response.arrayBuffer();
+      return {
+        default: async (options) => {
+          // The worker host accepts plugin URLs; its published types say object[].
+          const url = URL.createObjectURL(new Blob([piano], { type: "application/wasm" }));
+          try {
+            return await module.default({ ...options, withPlugins: [url] as unknown as object[] });
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        },
+      };
+    },
   ) {
     this.#importModule = importModule;
   }
@@ -54,10 +71,7 @@ export class CsoundModuleLoader {
 
   create(options: CsoundCreateOptions) {
     if (!this.#factory) {
-      void this.preload().catch(() => {
-        // The next Play attempt reports another load failure and can retry.
-      });
-      throw new Error(loadingMessage);
+      return this.preload().then((factory) => factory(options));
     }
     return this.#factory(options);
   }

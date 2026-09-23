@@ -14,6 +14,7 @@ class FakeAudioElement extends EventTarget {
   playCalls = 0;
   loadCalls = 0;
   playError: Error | null = null;
+  deferPauseEvent = false;
 
   load() {
     this.loadCalls += 1;
@@ -33,7 +34,7 @@ class FakeAudioElement extends EventTarget {
       return;
     }
     this.paused = true;
-    this.dispatchEvent(new Event("pause"));
+    if (!this.deferPauseEvent) this.dispatchEvent(new Event("pause"));
   }
 
   removeAttribute(name: string) {
@@ -48,6 +49,22 @@ class FakeAudioElement extends EventTarget {
 }
 
 describe("AudioTransport", () => {
+  test("reports pause before the browser delivers its queued event", async () => {
+    const audio = new FakeAudioElement();
+    audio.deferPauseEvent = true;
+    const transport = new AudioTransport(audio.asAudioElement());
+    transport.loadWav(new Uint8Array([1]));
+    await transport.play();
+
+    transport.pause();
+    expect(transport.snapshot.state).toBe("paused");
+
+    await transport.play();
+    audio.dispatchEvent(new Event("pause"));
+    expect(transport.snapshot.state).toBe("playing");
+    transport.dispose();
+  });
+
   test("loads without autoplay and exposes play, pause, stop, and seek", async () => {
     const audio = new FakeAudioElement();
     const snapshots: AudioTransportSnapshot[] = [];
